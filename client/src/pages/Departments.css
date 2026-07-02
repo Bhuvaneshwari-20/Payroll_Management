@@ -1,0 +1,118 @@
+/* ---------- Breadcrumb ---------- */
+.kr-breadcrumb {
+  margin-bottom: 1rem;
+}
+.kr-breadcrumb .breadcrumb {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+}
+.kr-breadcrumb .breadcrumb-item.active {
+  color: #a4133c;
+  font-weight: 500;
+}
+.kr-breadcrumb .breadcrumb-item a {
+  color: #6b7280;
+  text-decoration: none;
+}
+
+/* ---------- Page header ---------- */
+.kr-page-header {
+  margin-bottom: 1.5rem;
+}
+.kr-page-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.15rem;
+}
+.kr-page-subtitle {
+  color: #64748b;
+  margin-bottom: 0;
+}
+
+/* ---------- Buttons (matches btn-primary / btn-secondary in style.css) ---------- */
+.btn-primary {
+  background: linear-gradient(135deg, #7b0d2e, #a4133c);
+  border: none;
+  color: #fff;
+  padding: 0.55rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #650a26, #8f1035);
+  color: #fff;
+}
+.btn-secondary {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  padding: 0.55rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* ---------- Card ---------- */
+.card {
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+.card-header {
+  background: linear-gradient(90deg, #fdf2f4, #ffffff);
+  border-bottom: 1px solid #f1f1f1;
+  border-radius: 14px 14px 0 0 !important;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* ---------- Status badges ---------- */
+.kr-badge {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.kr-badge-active {
+  background: #dcfce7;
+  color: #15803d;
+}
+.kr-badge-inactive {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ---------- Department badge (used on Roles table) ---------- */
+.kr-department-badge {
+  background: #eef1ff;
+  color: #4338ca;
+  font-weight: 600;
+  padding: 5px 10px;
+}
+
+/* ---------- Action buttons ---------- */
+.kr-action-btn-edit {
+  background: #e0e7ff;
+  color: #4338ca;
+  border: none;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+}
+.kr-action-btn-edit:hover {
+  background: #c7d2fe;
+}
+.kr-action-btn-delete {
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+}
+.kr-action-btn-delete:hover {
+  background: #fecaca;
+}

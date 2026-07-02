@@ -1,0 +1,241 @@
+:root {
+  --toyota-red: #eb0a1e;
+  --dark-gray: #1a1a1a;
+}
+
+.login-page-body {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-color: var(--dark-gray);
+}
+
+.split-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.login-side {
+  flex: 0 0 40%;
+  background-color: white;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+  box-shadow: 5px 0 15px rgba(0, 0, 0, 0.3);
+}
+
+.image-side {
+  flex: 0 0 60%;
+  position: relative;
+  overflow: hidden;
+  background-color: var(--dark-gray);
+}
+
+.showroom-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.85;
+  background: url('/assets/images/krish.jpeg') no-repeat center;
+  background-size: cover;
+  animation: fadeIn 1.5s ease-out;
+}
+
+.car-container {
+  position: absolute;
+  bottom: 10%;
+  right: -100%;
+  width: 70%;
+  animation: slideInCar 1.5s ease-out forwards;
+  animation-delay: 0.5s;
+}
+
+.car-container img {
+  width: 70%;
+  height: auto;
+  filter: drop-shadow(5px 5px 15px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes slideInCar {
+  from {
+    right: -100%;
+  }
+  to {
+    right: 5%;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.85;
+  }
+}
+
+.wave-container {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  mix-blend-mode: soft-light;
+}
+
+.wave {
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(45deg, var(--toyota-red), #ff4d4d);
+  opacity: 0.3;
+  transform-origin: 50% 48%;
+  border-radius: 43%;
+  animation: drift 15000ms infinite linear;
+  top: -50%;
+  left: -50%;
+}
+
+.wave:nth-child(2) {
+  animation-duration: 17000ms;
+  opacity: 0.2;
+  background: linear-gradient(-45deg, #ff4d4d, var(--toyota-red));
+}
+
+@keyframes drift {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toyota-logo {
+  width: 180px;
+  margin-bottom: 2rem;
+  filter: drop-shadow(0 0 10px rgba(235, 10, 30, 0.3));
+}
+
+.login-container {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.login-page-body .form-control {
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  border: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  transition: all 0.3s ease;
+}
+
+.login-page-body .form-control:focus {
+  box-shadow: 0 0 0 3px rgba(235, 10, 30, 0.1);
+  border-color: var(--toyota-red);
+  transform: translateY(-2px);
+}
+
+.login-btn {
+  background: var(--toyota-red);
+  border: none;
+  color: white;
+  padding: 0.8rem;
+  border-radius: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+}
+
+.login-btn:hover {
+  background: #cc0919;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(235, 10, 30, 0.2);
+  color: white;
+}
+
+.image-content {
+  position: absolute;
+  z-index: 2;
+  color: white;
+  top: 10%;
+  left: 45%;
+  animation: fadeInUp 1s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.image-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.image-subtitle {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+@media (max-width: 768px) {
+  .split-container {
+    flex-direction: column;
+  }
+  .login-side,
+  .image-side {
+    flex: 0 0 100%;
+  }
+  .image-side {
+    min-height: 400px;
+  }
+  .car-container {
+    width: 90%;
+    bottom: 5%;
+  }
+}
+
+.copyright {
+  position: fixed;
+  bottom: 1rem;
+  width: 40%;
+  text-align: center;
+  color: #666;
+  font-size: 0.875rem;
+  left: 0;
+  z-index: 10;
+}
+
+#particles-js {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.login-page-body .alert {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+}
