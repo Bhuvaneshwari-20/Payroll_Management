@@ -1,0 +1,13 @@
+{
+  "name": "Payroll_Management",
+  "private": true,
+  "scripts": {
+    "client": "cd client && npm run dev",
+    "server": "cd server && npm run dev",
+    "start": "concurrently \"npm run server\" \"npm run client\""
+  },
+ 
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
