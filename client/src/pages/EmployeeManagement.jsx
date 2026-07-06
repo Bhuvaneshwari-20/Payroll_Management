@@ -13,7 +13,7 @@ import defaultProfile from "../assets/images/default-profile.png";
 const TABS = [
     { key: 'employees', label: 'Employees', icon: 'fa-users' },
     { key: 'managers', label: 'Managers', icon: 'fa-user-tie' },
-    { key: 'statusHistory', label: 'Status History', icon: 'fa-history' },
+    // { key: 'statusHistory', label: 'Status History', icon: 'fa-history' },
     { key: 'bulkUpload', label: 'Bulk Upload', icon: 'fa-upload' },
     { key: 'uploadHistory', label: 'Upload History', icon: 'fa-history' },
     { key: 'statusChanges', label: 'Status Changes', icon: 'fa-exchange-alt' },

@@ -8,6 +8,10 @@ import Attendance from './pages/Attendance';
 import ComingSoon from './pages/ComingSoon';
 import MainLayout from './layouts/MainLayout';
 import ProtectedRoute from './routes/ProtectedRoute';
+import LeaveManagement from './pages/LeaveManagement';
+import ManagerLeaveManagement from './pages/ManagerLeaveManagement';
+import AdminLeaveManagement from './pages/AdminLeaveManagement';
+import LeaveAllocation from './pages/LeaveAllocation';
 
 export default function App() {
   return (
@@ -25,18 +29,24 @@ export default function App() {
         <Route path="/departments" element={<Departments />} />
         <Route path="/roles" element={<Roles />} />
         <Route path="/employees" element={<EmployeeManagement />} />
-        <Route path="/attendance" element ={<Attendance/>}/>
+        <Route path="/attendance" element={<Attendance />} />
+
+        {/* Employee + Manager — apply own leave, see own requests */}
+        <Route path="/my-wallet" element={<LeaveManagement />} />
+
+        {/* Manager only — approve/forward/reject their team's requests */}
+        <Route path="/manager-leave-management" element={<ManagerLeaveManagement />} />
+
+        {/* HR/Admin only — org-wide view, final approve/reject */}
+        <Route path="/LeaveManagement" element={<AdminLeaveManagement />} />
+        <Route path="/leave-allocation" element={<LeaveAllocation />} />
 
         {/* Still pending conversion — Phase 2 */}
-        <Route path="/admin-leave-management" element={<ComingSoon title="Leave Management" />} />
         <Route path="/attendance-report" element={<ComingSoon title="Attendance Report" />} />
         <Route path="/salary-report" element={<ComingSoon title="Salary Report" />} />
-        <Route path="/leave-allocation" element={<ComingSoon title="Leave Allocation" />} />
         <Route path="/payslip-generator" element={<ComingSoon title="Payslip Generator" />} />
         <Route path="/employee-passwords" element={<ComingSoon title="Employee Password Management" />} />
-        <Route path="/wallet" element={<ComingSoon title="HR Wallet" />} />
         <Route path="/payslip" element={<ComingSoon title="My Payslips" />} />
-        <Route path="/head-leave-management" element={<ComingSoon title="Leave Management" />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

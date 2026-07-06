@@ -266,6 +266,241 @@ exports.downloadTemplate = (req, res) => {
   res.send(csv);
 };
 
+// ==================== BULK EMPLOYEE ADD (full new employees) ====================
+
+// Column order = the template we generate below. REQUIRED columns must be
+// present and non-empty or the row is rejected with a specific error.
+const EMP_TEMPLATE_COLUMNS = [
+  { header: 'First Name', key: 'first_name', required: true },
+  { header: 'Last Name', key: 'last_name', required: true },
+  { header: 'Date of Birth (YYYY-MM-DD)', key: 'dob', required: true },
+  { header: 'Phone', key: 'phone', required: true },
+  { header: 'Emergency Contact', key: 'emergency_contact', required: true },
+  { header: 'Email', key: 'email', required: true },
+  { header: 'Gender (male/female/other)', key: 'gender', required: true },
+  { header: 'Father Name', key: 'father_name', required: true },
+  { header: 'Qualification', key: 'qualification', required: true },
+  { header: 'District', key: 'district', required: true },
+  { header: 'Pincode', key: 'pincode', required: true },
+  { header: 'Blood Group', key: 'blood_group', required: false },
+  { header: 'Address', key: 'address', required: false },
+  { header: 'Aadhaar', key: 'aadhaar', required: true },
+  { header: 'Bank Name', key: 'bank_name', required: true },
+  { header: 'Branch Name', key: 'branch_name', required: true },
+  { header: 'Account Number', key: 'account_number', required: true },
+  { header: 'IFSC Code', key: 'ifsc_code', required: true },
+  { header: 'PAN', key: 'pan', required: false },
+  { header: 'UAN Number', key: 'uan_number', required: false },
+  { header: 'ESIC Number', key: 'esic_number', required: false },
+  { header: 'Joining Date (YYYY-MM-DD)', key: 'joining_date', required: true },
+  { header: 'Department', key: 'department_name', required: true },
+  { header: 'Role', key: 'role_name', required: true },
+  { header: 'Manager Employee Code', key: 'manager_code', required: false },
+  { header: 'Job Type (Permanent/Temporary)', key: 'jtype', required: false },
+  { header: 'Status (active/inactive)', key: 'status', required: false },
+  { header: 'Total Gross Salary', key: 'total_gross', required: true },
+  { header: 'PF Applicable (Yes/No)', key: 'pf_applicable', required: false },
+  { header: 'ESI Applicable (Yes/No)', key: 'esi_applicable', required: false },
+  { header: 'IT Tax', key: 'it_tax', required: false },
+  { header: 'P Tax', key: 'p_tax', required: false },
+  { header: 'Food', key: 'food', required: false },
+  { header: 'Uniform', key: 'uniform', required: false },
+  { header: 'House Rent', key: 'house_rent', required: false },
+  { header: 'LWF', key: 'lwf', required: false },
+  { header: 'Other Deduction', key: 'other_deduction', required: false },
+];
+
+// GET /api/employees/bulk/employee-template
+exports.downloadEmployeeTemplate = async (req, res) => {
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('New Employees');
+
+    sheet.addRow(EMP_TEMPLATE_COLUMNS.map((c) => c.header));
+    const headerRow = sheet.getRow(1);
+    headerRow.eachCell((cell, colNumber) => {
+      const col = EMP_TEMPLATE_COLUMNS[colNumber - 1];
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = {
+        type: 'pattern', pattern: 'solid',
+        fgColor: { argb: col.required ? 'FFB91C1C' : 'FF4158D0' }, // red = required, blue = optional
+      };
+    });
+
+    // One example row so the format is unambiguous
+    sheet.addRow([
+      'Ramesh', 'Kumar', '1995-06-15', '9876543210', '9876543211', 'ramesh@example.com',
+      'male', 'Suresh Kumar', 'B.Com', 'Karur', '639001', 'O+', '12 Main Street',
+      '123456789012', 'State Bank of India', 'Karur Main', '1234567890123', 'SBIN0001234',
+      'ABCDE1234F', '', '', '2026-01-15', 'SALES', 'ASSISTANT SALES MANAGER', '',
+      'Permanent', 'active', '25000', 'Yes', 'Yes', '0', '0', '0', '0', '0', '0', '0',
+    ]);
+
+    sheet.columns.forEach((c) => (c.width = 20));
+    sheet.getRow(1).height = 30;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="new_employees_template.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to generate template: ' + err.message });
+  }
+};
+
+// Same split the modal's "Total Gross" (#ot) field does live in the browser —
+// kept identical so bulk-added and manually-added employees compute salary
+// the exact same way.
+function splitGrossSalary(gross) {
+  const medical = 1250;
+  const conveyance = 1600;
+  const basic = Math.round(gross * 0.40);
+  const hra = Math.round(gross * 0.16);
+  const special = Math.max(0, gross - basic - hra - medical - conveyance);
+  return { basic, hra, medical, conveyance, special };
+}
+
+// POST /api/employees/bulk/employees  (multipart: excel_file)
+exports.uploadBulkEmployees = async (req, res) => {
+  try {
+    if (!req.file) return fail(res, 'No file uploaded');
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(req.file.path);
+    const sheet = workbook.worksheets[0];
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+    const totalRecords = sheet.rowCount - 1;
+
+    for (let r = 2; r <= sheet.rowCount; r++) {
+      const row = sheet.getRow(r);
+      if (row.cellCount === 0 || !row.getCell(1).value) continue;
+
+      const rowData = {};
+      EMP_TEMPLATE_COLUMNS.forEach((col, idx) => {
+        const val = row.getCell(idx + 1).value;
+        rowData[col.key] = val !== null && val !== undefined ? String(val).trim() : '';
+      });
+
+      // Required-field validation
+      const missing = EMP_TEMPLATE_COLUMNS.filter((c) => c.required && !rowData[c.key]);
+      if (missing.length) {
+        errors.push(`Row ${r}: Missing required field(s): ${missing.map((c) => c.header).join(', ')}`);
+        errorCount++;
+        continue;
+      }
+
+      try {
+        // Resolve Department / Role names -> IDs
+        const departmentId = await employeeModel.getDepartmentIdByName(rowData.department_name);
+        if (!departmentId) {
+          errors.push(`Row ${r}: Department "${rowData.department_name}" not found`);
+          errorCount++;
+          continue;
+        }
+        const roleId = await employeeModel.getRoleIdByNameAndDepartment(rowData.role_name, departmentId);
+        if (!roleId) {
+          errors.push(`Row ${r}: Role "${rowData.role_name}" not found in department "${rowData.department_name}"`);
+          errorCount++;
+          continue;
+        }
+        const managerId = rowData.manager_code
+          ? await employeeModel.getManagerIdByEmployeeCode(rowData.manager_code)
+          : null;
+        if (rowData.manager_code && !managerId) {
+          errors.push(`Row ${r}: Manager employee code "${rowData.manager_code}" not found`);
+          errorCount++;
+          continue;
+        }
+
+        if (await employeeModel.isEmailTaken(rowData.email)) {
+          errors.push(`Row ${r}: Email "${rowData.email}" already exists`);
+          errorCount++;
+          continue;
+        }
+
+        const gross = parseFloat(rowData.total_gross) || 0;
+        const { basic, hra, medical, conveyance, special } = splitGrossSalary(gross);
+
+        await employeeModel.bulkInsertEmployee({
+          first_name: rowData.first_name,
+          last_name: rowData.last_name,
+          dob: rowData.dob,
+          phone: rowData.phone,
+          emergency_contact: rowData.emergency_contact,
+          email: rowData.email,
+          gender: rowData.gender.toLowerCase(),
+          father_name: rowData.father_name,
+          qualification: rowData.qualification,
+          district: rowData.district,
+          pincode: rowData.pincode,
+          blood_group: rowData.blood_group || null,
+          address: rowData.address || null,
+          aadhaar: rowData.aadhaar,
+          bank_name: rowData.bank_name,
+          branch_name: rowData.branch_name,
+          account_number: rowData.account_number,
+          ifsc_code: rowData.ifsc_code.toUpperCase(),
+          pan: rowData.pan ? rowData.pan.toUpperCase() : null,
+          uan_number: rowData.uan_number || null,
+          esic_number: rowData.esic_number || null,
+          joining_date: rowData.joining_date,
+          department_id: departmentId,
+          role_id: roleId,
+          manager_id: managerId,
+          jtype: rowData.jtype || 'Permanent',
+          status: (rowData.status || 'active').toLowerCase(),
+          employee_master_type: null,
+          caution_deposit: 0,
+          cert_names: null,
+          cert_files: null,
+          profile_image: null,
+          // Salary — split from Total Gross exactly like the modal does
+          basic_salary: basic,
+          hra: hra,
+          da: 0,
+          special_allowances: special,
+          medical_allowances: medical,
+          conveyance: conveyance,
+          ot: gross,
+          pf_applicable: String(rowData.pf_applicable).toLowerCase() === 'yes' ? 1 : 0,
+          esi_applicable: String(rowData.esi_applicable).toLowerCase() === 'yes' ? 1 : 0,
+          it_tax: parseFloat(rowData.it_tax) || 0,
+          p_tax: parseFloat(rowData.p_tax) || 0,
+          food: parseFloat(rowData.food) || 0,
+          uniform: parseFloat(rowData.uniform) || 0,
+          rent: parseFloat(rowData.house_rent) || 0,
+          lwf: parseFloat(rowData.lwf) || 0,
+          other_deduction: parseFloat(rowData.other_deduction) || 0,
+        });
+
+        successCount++;
+      } catch (rowErr) {
+        errors.push(`Row ${r}: ${rowErr.message}`);
+        errorCount++;
+      }
+    }
+
+    const uploadStatus = errorCount > 0 ? 'partial' : 'completed';
+    await employeeModel.insertUploadHistory({
+      uploadType: 'New Employee Bulk Add',
+      fileName: req.file.filename,
+      filePath: path.join('bulk_uploads', req.file.filename),
+      uploadedBy: req.user?.id || null,
+      recordsCount: totalRecords,
+      successCount,
+      errorCount,
+      status: uploadStatus,
+    });
+
+    ok(res, `Upload completed. Added: ${successCount}, Errors: ${errorCount}`, { errors });
+  } catch (err) {
+    fail(res, 'Failed to process upload: ' + err.message, 500);
+  }
+};
+
 // ==================== EXCEL EXPORTS ====================
 exports.exportEmployeesExcel = async (req, res) => {
   try {

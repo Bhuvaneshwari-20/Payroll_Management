@@ -1,12 +1,7 @@
-// Reuses the SAME shared axios client (`./api`) that departmentService.js uses —
-// this is the pattern that fixed the earlier Employees auth bug, so every
-// attendance call gets identical auth/proxy behavior for free.
+
 import api from './api';
 
-// NOTE: 'Half-day' is intentionally NOT in this list. In this design, half-day
-// is a separate boolean flag (is_half_day) with its own checkbox in the UI,
-// combined with whichever base status applies (e.g. OD + half-day = "OD/S").
-// Matches attendanceController.js's STATUS_VALUES exactly — keep these two in sync.
+
 export const STATUS_OPTIONS = ['Present', 'Absent', 'CL', 'SL', 'OD', 'Holiday'];
 
 export const attendanceService = {
@@ -22,10 +17,7 @@ export const attendanceService = {
   getMonthlyReport: (month, year) =>
     api.get('/attendance/report', { params: { month, year } }).then((r) => r.data),
 
-  // ---- Template download ----
-  // <a href="..."> can't carry the Authorization header — it's a plain browser
-  // navigation, not an axios request. Fetch as a blob (with the token attached
-  // by the shared interceptor) and trigger the save manually instead.
+  
   downloadTemplate: async (month, year) => {
     const response = await api.get('/attendance/template', {
       params: { month, year },
@@ -44,9 +36,7 @@ export const attendanceService = {
     window.URL.revokeObjectURL(url);
   },
 
-  // ---- Bulk upload: single-shot import (matches attendanceController.js's
-  // POST /attendance/upload — reads day-code columns, ignores summary formula
-  // columns as untrusted input, upserts server-side). ----
+ 
   uploadAttendance: (file, month, year, onProgress) => {
     const formData = new FormData();
     formData.append('excel_file', file);

@@ -3,9 +3,6 @@ const router = express.Router();
 const employeeController = require('../controllers/employeeController');
 const { employeeUpload, bulkUpload } = require('../middleware/uploadEmployee');
 
-// If you have an auth middleware, mount it in your app.js before this router, e.g.:
-// app.use('/api/employees', protect, employeeRoutes);
-
 // ---- Employees ----
 router.get('/', employeeController.getEmployees);
 router.get('/roles-by-department', employeeController.getRolesByDepartment);
@@ -31,5 +28,8 @@ router.post('/bulk/deductions', bulkUpload, employeeController.uploadBulkDeducti
 router.get('/bulk/history', employeeController.getUploadHistory);
 router.delete('/bulk/history', employeeController.clearUploadHistory);
 
-module.exports = router;
+// ---- Bulk NEW EMPLOYEE Upload (full employees, not just deductions) ----
+router.get('/bulk/employee-template', employeeController.downloadEmployeeTemplate);
+router.post('/bulk/employees', bulkUpload, employeeController.uploadBulkEmployees);
 
+module.exports = router;

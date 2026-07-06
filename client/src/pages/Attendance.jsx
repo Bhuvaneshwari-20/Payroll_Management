@@ -6,8 +6,14 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Shared by both Daily and Date-wise tabs — same table, only the date differs.
-function MarkAttendanceTable({ date, onDateChange, allowDateChange }) {
+/* ============================================================
+   Shared table used by both Daily and Date-wise tabs.
+   The only thing that changed here: on a successful save it now
+   calls onSaved(date) so the PARENT can refresh the one shared
+   Attendance Matrix — this table itself no longer owns any
+   report/matrix state.
+   ============================================================ */
+function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
   const [employees, setEmployees] = useState([]);
   const [statusMap, setStatusMap] = useState({});
   const [halfDayMap, setHalfDayMap] = useState({});
@@ -56,12 +62,9 @@ function MarkAttendanceTable({ date, onDateChange, allowDateChange }) {
     load();
   }, [load]);
 
-  // This is what actually persists to the `attendance` table
-  // (employee_id, date, status, is_half_day, remarks, marked_by, source='manual')
-  // via POST /api/attendance/mark — see attendanceController.js markAttendance
-  // and attendanceModel.js upsertAttendanceBatch (ON DUPLICATE KEY UPDATE keyed
-  // on the employee_id+date unique constraint, so re-saving the same date edits
-  // the existing rows instead of duplicating them).
+  // Persists to `attendance` (employee_id, date, status, is_half_day, remarks,
+  // marked_by, source='manual') via POST /api/attendance/mark, which upserts
+  // on the employee_id+date unique key — see attendanceController.js.
   const handleSave = async () => {
     setSaving(true);
     setMessage(null);
@@ -74,10 +77,13 @@ function MarkAttendanceTable({ date, onDateChange, allowDateChange }) {
       }));
       const res = await attendanceService.markAttendance(date, records);
       setMessage({ type: 'success', text: res.message || 'Saved' });
-      // Re-pull from DB to confirm what actually got persisted, rather than
-      // trusting local state — this is the "where does this actually save"
-      // confirmation loop.
-      load();
+
+      // Re-pull from DB to confirm what actually got persisted.
+      await load();
+
+      // Tell the parent so the shared Attendance Matrix refreshes too,
+      // without needing a page reload or a tab switch.
+      if (onSaved) onSaved(date);
     } catch (err) {
       setMessage({
         type: 'error',
@@ -89,101 +95,124 @@ function MarkAttendanceTable({ date, onDateChange, allowDateChange }) {
   };
 
   return (
-    <div>
-      <div className="d-flex align-items-center gap-3 mb-3">
-        {allowDateChange && (
-          <input
-            type="date"
-            className="form-control"
-            style={{ maxWidth: 200 }}
-            value={date}
-            onChange={(e) => onDateChange(e.target.value)}
-          />
-        )}
-        {!allowDateChange && <strong>{date}</strong>}
-        <button className="btn btn-primary" disabled={saving || loading} onClick={handleSave}>
-          {saving ? 'Saving...' : 'Save Attendance'}
-        </button>
-      </div>
-
-      {message && (
-        <div className={`alert ${message.type === 'error' ? 'alert-danger' : 'alert-success'}`}>
-          {message.text}
+    <div className="card shadow-sm">
+      <div className="card-body">
+        <div className="d-flex align-items-center gap-3 mb-3">
+          {allowDateChange && (
+            <input
+              type="date"
+              className="form-control"
+              style={{ maxWidth: 200 }}
+              value={date}
+              onChange={(e) => onDateChange(e.target.value)}
+            />
+          )}
+          {!allowDateChange && (
+            <span className="badge bg-primary-subtle text-primary-emphasis fs-6 px-3 py-2">
+              <i className="fas fa-calendar-day me-1" /> {date}
+            </span>
+          )}
+          <button className="btn btn-primary ms-auto" disabled={saving || loading} onClick={handleSave}>
+            {saving ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" role="status" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-save me-1" /> Save Attendance
+              </>
+            )}
+          </button>
         </div>
-      )}
 
-      {loading ? (
-        <p>Loading employees...</p>
-      ) : (
-        <table className="table table-bordered table-sm">
-          <thead>
-            <tr>
-              <th>Employee Code</th>
-              <th>Employee Name</th>
-              <th style={{ width: 140 }}>Status</th>
-              <th style={{ width: 90 }}>Half day</th>
-              <th>Remarks</th>
-            </tr>
-          </thead>
-          <tbody>
-            {employees.map((e) => (
-              <tr key={e.id}>
-                <td>{e.employee_code}</td>
-                <td>{e.name}</td>
-                <td>
-                  <select
-                    className="form-select form-select-sm"
-                    value={statusMap[e.id] || 'Present'}
-                    onChange={(ev) => setStatusMap({ ...statusMap, [e.id]: ev.target.value })}
-                  >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="text-center">
-                  <input
-                    type="checkbox"
-                    checked={!!halfDayMap[e.id]}
-                    onChange={(ev) => setHalfDayMap({ ...halfDayMap, [e.id]: ev.target.checked })}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    className="form-control form-control-sm"
-                    value={remarksMap[e.id] || ''}
-                    onChange={(ev) => setRemarksMap({ ...remarksMap, [e.id]: ev.target.value })}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+        {message && (
+          <div className={`alert ${message.type === 'error' ? 'alert-danger' : 'alert-success'} py-2`}>
+            <i className={`fas ${message.type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check'} me-2`} />
+            {message.text}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="text-center text-muted py-4">
+            <span className="spinner-border spinner-border-sm me-2" />
+            Loading employees...
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-bordered table-sm align-middle">
+              <thead className="table-light">
+                <tr>
+                  <th>Employee Code</th>
+                  <th>Employee Name</th>
+                  <th style={{ width: 150 }}>Status</th>
+                  <th style={{ width: 90 }} className="text-center">Half day</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employees.map((e) => (
+                  <tr key={e.id}>
+                    <td>{e.employee_code}</td>
+                    <td>{e.name}</td>
+                    <td>
+                      <select
+                        className="form-select form-select-sm"
+                        value={statusMap[e.id] || 'Present'}
+                        onChange={(ev) => setStatusMap({ ...statusMap, [e.id]: ev.target.value })}
+                      >
+                        {STATUS_OPTIONS.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="text-center">
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        checked={!!halfDayMap[e.id]}
+                        onChange={(ev) => setHalfDayMap({ ...halfDayMap, [e.id]: ev.target.checked })}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        value={remarksMap[e.id] || ''}
+                        onChange={(ev) => setRemarksMap({ ...remarksMap, [e.id]: ev.target.value })}
+                      />
+                    </td>
+                  </tr>
+                ))}
+                {employees.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="text-center text-muted py-3">No active employees found</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function UploadAttendanceTab() {
-  const now = new Date();
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
+/* ============================================================
+   Upload tab — no longer owns report state. It just uploads and
+   tells the parent to refresh (via onUploaded), and reads the
+   shared month/year selectors from props so the upload target
+   period always matches the period being viewed in the matrix.
+   ============================================================ */
+function UploadAttendanceTab({ month, year, setMonth, setYear, onUploaded }) {
   const [file, setFile] = useState(null);
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
-  const [reportData, setReportData] = useState([]);
   const [downloading, setDownloading] = useState(false);
 
-  // FIX: previously this only read res.data from the upload response and,
-  // if the backend didn't return the matrix inline, the table silently
-  // stayed empty and you only ever saw the plain success toast. Now the
-  // upload endpoint returns the freshly-built matrix directly (see
-  // attendanceController.js uploadAttendance -> model.getMonthlyReport),
-  // and as a safety net we re-fetch explicitly if that's ever missing.
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
@@ -191,13 +220,10 @@ function UploadAttendanceTab() {
     try {
       const res = await attendanceService.uploadAttendance(file, month, year, setProgress);
       setResult({ type: 'success', text: res.message });
-
-      if (res.data && res.data.length > 0) {
-        setReportData(res.data);
-      } else {
-        const reportRes = await attendanceService.getMonthlyReport(month, year);
-        setReportData(reportRes.data || []);
-      }
+      setFile(null);
+      // Always refetch from DB rather than trusting any inline payload —
+      // this is the single source of truth path shared by all 3 modules.
+      if (onUploaded) await onUploaded();
     } catch (err) {
       const data = err?.response?.data;
       setResult({ type: 'error', text: data?.message || 'Upload failed', errors: data?.errors });
@@ -206,21 +232,6 @@ function UploadAttendanceTab() {
       setProgress(0);
     }
   };
-
-  // Also load the report whenever month/year changes, so switching periods
-  // shows existing DB data even without a fresh upload.
-  const loadExistingReport = useCallback(async () => {
-    try {
-      const reportRes = await attendanceService.getMonthlyReport(month, year);
-      setReportData(reportRes.data || []);
-    } catch {
-      /* leave table hidden if nothing exists yet for this period */
-    }
-  }, [month, year]);
-
-  useEffect(() => {
-    loadExistingReport();
-  }, [loadExistingReport]);
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -234,71 +245,131 @@ function UploadAttendanceTab() {
   };
 
   return (
-    <div>
-      <div className="row g-3 align-items-end mb-4">
-        <div className="col-auto">
-          <label className="form-label">Month</label>
-          <select className="form-select" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+    <div className="card shadow-sm">
+      <div className="card-body">
+        <div className="row g-3 align-items-end mb-3">
+          <div className="col-auto">
+            <label className="form-label small text-muted mb-1">Month</label>
+            <select className="form-select" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div className="col-auto">
+            <label className="form-label small text-muted mb-1">Year</label>
+            <input
+              type="number"
+              className="form-control"
+              style={{ width: 110 }}
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+            />
+          </div>
+          <div className="col-auto">
+            <button className="btn btn-outline-primary" disabled={downloading} onClick={handleDownload}>
+              <i className="fas fa-download me-1" /> {downloading ? 'Downloading...' : 'Download Template'}
+            </button>
+          </div>
+        </div>
+
+        <p className="text-muted small mb-3">
+          Codes: <strong>P</strong> Present, <strong>AB</strong> Absent, <strong>CL</strong>, <strong>SL</strong>,{' '}
+          <strong>OD</strong>, <strong>H</strong> Holiday. Add <strong>/S</strong> for half-day (e.g. OD/S).
+        </p>
+
+        <div className="row g-3 align-items-end">
+          <div className="col-auto">
+            <label className="form-label small text-muted mb-1">Upload Filled Template</label>
+            <input
+              type="file"
+              className="form-control"
+              accept=".xlsx,.xls"
+              onChange={(e) => setFile(e.target.files[0])}
+            />
+          </div>
+          <div className="col-auto">
+            <button className="btn btn-success" disabled={!file || uploading} onClick={handleUpload}>
+              {uploading ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" />
+                  Uploading {progress}%
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-upload me-1" /> Upload
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {result && (
+          <div className={`alert mt-3 ${result.type === 'error' ? 'alert-danger' : 'alert-success'}`}>
+            {result.text}
+            {result.errors && (
+              <ul className="mb-0 mt-2">
+                {result.errors.slice(0, 20).map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   The ONE Attendance Matrix on the page. Lives outside the tabs
+   so it's always visible and always reflects whichever module
+   last wrote to the DB — Upload, Daily, or Date-wise.
+   ============================================================ */
+function AttendanceMatrixSection({ month, year, setMonth, setYear, data, loading, onRefresh }) {
+  return (
+    <div className="mt-4">
+      <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <h5 className="mb-0">
+          <i className="fas fa-table me-2 text-primary" />
+          Attendance Matrix — {month}/{year}
+        </h5>
+        <div className="d-flex align-items-center gap-2">
+          <select className="form-select form-select-sm" style={{ width: 90 }} value={month} onChange={(e) => setMonth(Number(e.target.value))}>
             {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
+              <option key={m} value={m}>{m}</option>
             ))}
           </select>
-        </div>
-        <div className="col-auto">
-          <label className="form-label">Year</label>
           <input
             type="number"
-            className="form-control"
+            className="form-control form-control-sm"
+            style={{ width: 90 }}
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
           />
-        </div>
-        <div className="col-auto">
-          <button className="btn btn-outline-primary" disabled={downloading} onClick={handleDownload}>
-            <i className="fas fa-download me-1" /> {downloading ? 'Downloading...' : 'Download Template'}
+          <button className="btn btn-outline-secondary btn-sm" onClick={onRefresh} disabled={loading}>
+            <i className={`fas fa-rotate ${loading ? 'fa-spin' : ''} me-1`} /> Refresh
           </button>
         </div>
       </div>
 
-      <p className="text-muted small mb-3">
-        Codes: <strong>P</strong> Present, <strong>AB</strong> Absent, <strong>CL</strong>, <strong>SL</strong>,{' '}
-        <strong>OD</strong>, <strong>H</strong> Holiday. Add <strong>/S</strong> for half-day (e.g. OD/S).
-      </p>
-
-      <div className="row g-3 align-items-end">
-        <div className="col-auto">
-          <label className="form-label">Upload Filled Template</label>
-          <input
-            type="file"
-            className="form-control"
-            accept=".xlsx,.xls"
-            onChange={(e) => setFile(e.target.files[0])}
-          />
-        </div>
-        <div className="col-auto">
-          <button className="btn btn-success" disabled={!file || uploading} onClick={handleUpload}>
-            {uploading ? `Uploading ${progress}%` : 'Upload'}
-          </button>
-        </div>
-      </div>
-
-      {result && (
-        <div className={`alert mt-3 ${result.type === 'error' ? 'alert-danger' : 'alert-success'}`}>
-          {result.text}
-          {result.errors && (
-            <ul className="mb-0 mt-2">
-              {result.errors.slice(0, 20).map((e, i) => (
-                <li key={i}>{e}</li>
-              ))}
-            </ul>
-          )}
+      {loading && (
+        <div className="text-center text-muted py-4">
+          <span className="spinner-border spinner-border-sm me-2" />
+          Loading latest attendance data...
         </div>
       )}
 
-      {reportData.length > 0 && (
-        <AttendanceMatrixTable data={reportData} month={month} year={year} />
+      {!loading && data.length > 0 && (
+        <AttendanceMatrixTable data={data} month={month} year={year} />
+      )}
+
+      {!loading && data.length === 0 && (
+        <div className="card">
+          <div className="card-body text-center text-muted py-4">
+            No attendance records found for {month}/{year} yet.
+          </div>
+        </div>
       )}
     </div>
   );
@@ -307,6 +378,47 @@ function UploadAttendanceTab() {
 export default function Attendance() {
   const [tab, setTab] = useState('upload');
   const [dateWiseDate, setDateWiseDate] = useState(todayISO());
+
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const [reportData, setReportData] = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  const loadReport = useCallback(async (m, y) => {
+    setReportLoading(true);
+    try {
+      const res = await attendanceService.getMonthlyReport(m, y);
+      setReportData(res.data || []);
+    } catch {
+      setReportData([]);
+    } finally {
+      setReportLoading(false);
+    }
+  }, []);
+
+  // Initial load + reload whenever the viewed month/year changes
+  // (covers the matrix's own selector AND setMonth/setYear calls
+  // triggered by a save landing in a different period).
+  useEffect(() => {
+    loadReport(month, year);
+  }, [month, year, loadReport]);
+
+  // Called by Daily/Date-wise tabs after a successful save.
+  const handleAttendanceSaved = useCallback((savedDate) => {
+    const d = new Date(savedDate);
+    const m = d.getMonth() + 1;
+    const y = d.getFullYear();
+    if (m === month && y === year) {
+      // Same period already shown — just refetch.
+      loadReport(m, y);
+    } else {
+      // Different period — switch the matrix to it; the useEffect
+      // above will fetch automatically.
+      setMonth(m);
+      setYear(y);
+    }
+  }, [month, year, loadReport]);
 
   return (
     <div className="kr-page">
@@ -333,11 +445,37 @@ export default function Attendance() {
         </li>
       </ul>
 
-      {tab === 'upload' && <UploadAttendanceTab />}
-      {tab === 'daily' && <MarkAttendanceTable date={todayISO()} allowDateChange={false} />}
-      {tab === 'datewise' && (
-        <MarkAttendanceTable date={dateWiseDate} onDateChange={setDateWiseDate} allowDateChange />
+      {tab === 'upload' && (
+        <UploadAttendanceTab
+          month={month}
+          year={year}
+          setMonth={setMonth}
+          setYear={setYear}
+          onUploaded={() => loadReport(month, year)}
+        />
       )}
+      {tab === 'daily' && (
+        <MarkAttendanceTable date={todayISO()} allowDateChange={false} onSaved={handleAttendanceSaved} />
+      )}
+      {tab === 'datewise' && (
+        <MarkAttendanceTable
+          date={dateWiseDate}
+          onDateChange={setDateWiseDate}
+          allowDateChange
+          onSaved={handleAttendanceSaved}
+        />
+      )}
+
+      {/* Single shared matrix — always visible, always latest DB state */}
+      <AttendanceMatrixSection
+        month={month}
+        year={year}
+        setMonth={setMonth}
+        setYear={setYear}
+        data={reportData}
+        loading={reportLoading}
+        onRefresh={() => loadReport(month, year)}
+      />
     </div>
   );
 }

@@ -382,6 +382,44 @@ exports.clearUploadHistory = async () => {
 
 // ==================== EXCEL EXPORT ====================
 
+// ==================== BULK EMPLOYEE ADD (full employee, not just deductions) ====================
+
+exports.getDepartmentIdByName = async (name) => {
+  if (!name) return null;
+  const [rows] = await db.query("SELECT id FROM departments WHERE LOWER(name) = LOWER(?) LIMIT 1", [name.trim()]);
+  return rows.length ? rows[0].id : null;
+};
+
+exports.getRoleIdByNameAndDepartment = async (name, departmentId) => {
+  if (!name || !departmentId) return null;
+  const [rows] = await db.query(
+    "SELECT id FROM roles WHERE LOWER(name) = LOWER(?) AND department_id = ? LIMIT 1",
+    [name.trim(), departmentId]
+  );
+  return rows.length ? rows[0].id : null;
+};
+
+exports.getManagerIdByEmployeeCode = async (code) => {
+  if (!code) return null;
+  const [rows] = await db.query(
+    "SELECT id FROM managers WHERE employee_code = ? AND status = 'active' LIMIT 1",
+    [code.trim()]
+  );
+  return rows.length ? rows[0].id : null;
+};
+
+exports.isEmailTaken = async (email) => {
+  const [rows] = await db.query("SELECT id FROM employees WHERE email = ? LIMIT 1", [email]);
+  return rows.length > 0;
+};
+
+// One row = one full employee, using the exact same insertEmployee() the
+// Add Employee modal uses — so bulk-added and manually-added employees are
+// stored 100% identically, no parallel code path to drift out of sync.
+exports.bulkInsertEmployee = async (data) => {
+  return exports.insertEmployee(data);
+};
+
 exports.getEmployeesForExport = async (filter) => {
   let query = `
     SELECT e.*, d.name AS department_name, r.name AS role_name, m.name AS manager_name,

@@ -151,8 +151,14 @@ async function buildTemplateWorkbook(month, year) {
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-  // Live COUNTIF formulas so the summary columns recalculate automatically in
-  // Excel as soon as HR edits the day codes — no manual re-typing of totals.
+  // Live formulas so the summary columns recalculate automatically in Excel
+  // as soon as HR edits the day codes — no manual re-typing of totals.
+  //
+  // FIX: half-day codes now credit Present with the worked half of the day,
+  // in addition to their own leave/absence category. e.g. "AB/S" (half-day
+  // absent) = 0.5 Present (the half they worked) + 0 toward Absent, since
+  // Absent isn't a paid/summary column. "CL/S" = 0.5 CL + 0.5 Present, i.e.
+  // the day is fully payable (half worked + half approved leave).
   employees.forEach((_, i) => {
     const rowNum = i + 2; // header is row 1
     const range = `${firstDayColLetter}${rowNum}:${lastDayColLetter}${rowNum}`;
@@ -163,7 +169,15 @@ async function buildTemplateWorkbook(month, year) {
     const holCol = XLSX.utils.encode_col(lastDayColIdx + 6);
     const payCol = XLSX.utils.encode_col(lastDayColIdx + 7);
 
-    ws[`${presentCol}${rowNum}`] = { f: `COUNTIF(${range},"P")+COUNTIF(${range},"P/S")*0.5` };
+    ws[`${presentCol}${rowNum}`] = {
+      f: `COUNTIF(${range},"P")`
+        + `+COUNTIF(${range},"P/S")*0.5`
+        + `+COUNTIF(${range},"AB/S")*0.5`
+        + `+COUNTIF(${range},"CL/S")*0.5`
+        + `+COUNTIF(${range},"OD/S")*0.5`
+        + `+COUNTIF(${range},"SL/S")*0.5`
+        + `+COUNTIF(${range},"H/S")*0.5`,
+    };
     ws[`${clCol}${rowNum}`] = { f: `COUNTIF(${range},"CL")+COUNTIF(${range},"CL/S")*0.5` };
     ws[`${odCol}${rowNum}`] = { f: `COUNTIF(${range},"OD")+COUNTIF(${range},"OD/S")*0.5` };
     ws[`${slCol}${rowNum}`] = { f: `COUNTIF(${range},"SL")+COUNTIF(${range},"SL/S")*0.5` };
@@ -317,14 +331,34 @@ exports.getMonthlyReport = async (req, res) => {
     const data = employees.map((emp) => {
       const days = byEmployee.get(emp.id) || {};
       const summary = { Present: 0, CL: 0, OD: 0, SL: 0, Holiday: 0 };
+
       for (let d = 1; d <= numDays; d++) {
         const code = days[d];
         if (!code) continue;
         const parsed = parseCode(code);
-        if (parsed && summary[parsed.status] !== undefined) {
-          summary[parsed.status] += parsed.half ? 0.5 : 1;
+        if (!parsed) continue;
+        const { status, half } = parsed;
+
+        if (status === 'Present') {
+          // Full or half day explicitly marked Present.
+          summary.Present += half ? 0.5 : 1;
+        } else {
+          // Credit the leave/absence category itself (Absent has no
+          // summary column, so this is a no-op for AB/full-AB — correct,
+          // a full absent day earns nothing).
+          if (summary[status] !== undefined) {
+            summary[status] += half ? 0.5 : 1;
+          }
+          // FIX: a half-day of ANY status (including AB/S) means the
+          // employee worked the other half of that day — credit that
+          // half to Present. This is what was missing before, causing
+          // AB/S to silently contribute 0 instead of 0.5 Present.
+          if (half) {
+            summary.Present += 0.5;
+          }
         }
       }
+
       const payableDays = summary.Present + summary.CL + summary.OD + summary.SL + summary.Holiday;
       return {
         employee_code: emp.employee_code,

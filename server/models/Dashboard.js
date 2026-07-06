@@ -19,29 +19,24 @@ exports.getEmployeeGenderCounts = async () => {
   return rows[0];
 };
 
-// Same dynamic-table trick as PHP: attendance_YYYYMM, only if it exists
+
 exports.getTodayAttendance = async () => {
-  const now = new Date();
-  const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const table = `attendance_${yyyymm}`;
-  const today = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-  const [tables] = await db.query("SHOW TABLES LIKE ?", [table]);
-  if (tables.length === 0) {
-    return { presentToday: 0, absentToday: 0 };
-  }
+  const [totalRows] = await db.query(
+    "SELECT COUNT(*) AS total FROM employees WHERE status = 'active'"
+  );
+  const totalActive = totalRows[0].total || 0;
 
-  const [rows] = await db.query(
-    `SELECT
-        SUM(CASE WHEN in_time IS NOT NULL THEN 1 ELSE 0 END) AS present_count,
-        SUM(CASE WHEN in_time IS NULL THEN 1 ELSE 0 END) AS absent_count
-     FROM \`${table}\`
-     WHERE date = ?`,
+  const [presentRows] = await db.query(
+    `SELECT COUNT(DISTINCT a.employee_id) AS present_count
+     FROM attendance a
+     INNER JOIN employees e ON e.id = a.employee_id
+     WHERE a.date = ? AND e.status = 'active' AND a.status = 'Present'`,
     [today]
   );
+  const presentToday = presentRows[0].present_count || 0;
+  const absentToday = Math.max(totalActive - presentToday, 0);
 
-  return {
-    presentToday: rows[0].present_count || 0,
-    absentToday: rows[0].absent_count || 0,
-  };
+  return { presentToday, absentToday };
 };

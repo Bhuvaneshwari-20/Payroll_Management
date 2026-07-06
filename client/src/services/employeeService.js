@@ -31,7 +31,7 @@ export const employeeService = {
   // Master data export
   exportEmployees: (filter) => api.get('/employees/export', { params: { filter } }).then((r) => r.data),
 
-  // Bulk upload
+  // Bulk upload — DEDUCTIONS ONLY (existing employees)
   downloadDeductionTemplate: () => `${api.defaults.baseURL}/employees/bulk/template`,
   uploadBulkDeductions: (file, onProgress) => {
     const formData = new FormData();
@@ -45,6 +45,22 @@ export const employeeService = {
       })
       .then((r) => r.data);
   },
+
+  // Bulk upload — NEW EMPLOYEES (full records, same fields as Add Employee)
+  downloadEmployeeTemplate: () => `${api.defaults.baseURL}/employees/bulk/employee-template`,
+  uploadBulkEmployees: (file, onProgress) => {
+    const formData = new FormData();
+    formData.append('excel_file', file);
+    return api
+      .post('/employees/bulk/employees', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (evt) => {
+          if (onProgress && evt.total) onProgress(Math.round((evt.loaded / evt.total) * 100));
+        },
+      })
+      .then((r) => r.data);
+  },
+
   getUploadHistory: () => api.get('/employees/bulk/history').then((r) => r.data),
   clearUploadHistory: () => api.delete('/employees/bulk/history').then((r) => r.data),
 };

@@ -15,6 +15,9 @@ app.use("/api/roles", require("./routes/roleRoutes"));
 app.use('/api/employees',  require('./routes/employeeRoutes'));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); 
 app.use('/api/attendance', require('./routes/attendanceRoutes'));
+app.use('/api/leave', require('./routes/leaveRoutes'));
+app.use('/api/permission', require('./routes/permissionRoutes'));
+app.use('/api/leave-allocation', require('./routes/leaveAllocationRoutes'));
 
 
 app.listen(5000, () => {
