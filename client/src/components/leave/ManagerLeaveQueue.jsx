@@ -7,10 +7,6 @@ export default function ManagerLeaveQueue({ category }) {
   const [rows, setRows] = useState([]);
 
   const load = useCallback(() => {
-    // FIX: was fetching Pending-only before, so a request vanished the
-    // instant the manager acted on it. getManagerQueue now hits the
-    // "all requests for this manager" endpoint (see leaveApi.js change
-    // below) so history + status stays visible after acting.
     getManagerQueue(category).then((res) => setRows(res.data.data)).catch(() => {});
   }, [category]);
 

@@ -132,3 +132,13 @@ exports.getManagerAllRequests = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+exports.getHRStats = async (req, res) => {
+  try {
+    const category = req.query.category || 'leave';
+    const stats = await leaveModel.getHRStats(category);
+    res.json({ success: true, data: stats });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

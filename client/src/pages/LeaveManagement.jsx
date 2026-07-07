@@ -14,16 +14,12 @@ export default function LeaveManagement() {
   const [category, setCategory] = useState('leave'); // 'leave' | 'special' | 'permission'
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // FIX: this previously checked user?.role against 'manager'/'admin'/'hr',
-  // but your actual user object (per Sidebar.jsx) uses role === 'HR' plus
-  // a separate isManager boolean — so these tabs likely never appeared
-  // for real users. Matching the real shape now.
+
   const isManager = !!user?.isManager;
   const isHR = user?.role === 'HR';
 
   const isPermission = category === 'permission';
-  // Permission is single-stage (Employee -> Manager, final) — there is no
-  // HR stage for it, so the HR tab never applies when this category is selected.
+
   const showHRTab = isHR && !isPermission;
 
   const handleCategoryChange = (next) => {

@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
-import {
-  getAllForHR, getOrgStats, hrAction
-} from '../services/leaveApi';
-import { getAllPermissionsForAdmin, permissionManagerAction } from '../services/permissionApi';
+import { getAllForHR, getHRStats, hrAction } from '../services/leaveApi';
+import { getAllPermissionsForAdmin, permissionHrAction, getPermissionHRStats } from '../services/permissionApi';
 import LeaveStatusBadge from '../components/leave/LeaveStatusBadge';
 
 export default function AdminLeaveManagement() {
@@ -16,18 +14,19 @@ export default function AdminLeaveManagement() {
 
   const category = tab === 'special' ? 'special' : 'leave';
 
-  const loadStats = useCallback(() => {
-    getOrgStats().then((res) => setStats(res.data.data)).catch(() => {});
-  }, []);
 
+const loadStats = useCallback(() => {
+  setStats({ total: 0, pending: 0, rejected: 0, approved_today: 0 }); 
+  const fetchStats = tab === 'permission' ? getPermissionHRStats() : getHRStats(category);
+  fetchStats.then((res) => setStats(res.data.data)).catch(() => {});
+}, [tab, category]);
   const loadRows = useCallback(() => {
     if (tab === 'permission') {
-      getAllPermissionsForAdmin(statusFilter || null).then((res) => setRows(res.data.data)).catch(() => {});
+  
+      getAllPermissionsForAdmin(statusFilter || null)
+        .then((res) => setRows((res.data.data || []).filter((r) => r.status !== 'Pending')))
+        .catch(() => {});
     } else {
-      // FIX: HR must never see/action a 'Pending' request — that stage
-      // belongs to the Manager only. Even though the backend now filters
-      // this out too, we defensively strip it here as well in case an
-      // older/cached response ever includes one.
       getAllForHR(category, statusFilter || null)
         .then((res) => setRows((res.data.data || []).filter((r) => r.status !== 'Pending')))
         .catch(() => {});
@@ -49,12 +48,8 @@ export default function AdminLeaveManagement() {
 
     try {
       if (tab === 'permission') {
-        await permissionManagerAction(row.id, action, comments);
+        await permissionHrAction(row.id, action, comments);
       } else {
-        // FIX: HR can only ever call hrAction (approve/reject a Forwarded
-        // request). managerAction (forward/reject a Pending one) has been
-        // removed from this page entirely — that belongs on the Manager's
-        // own Leave Management page.
         await hrAction(row.id, action, comments);
       }
       loadRows();
@@ -64,25 +59,15 @@ export default function AdminLeaveManagement() {
     }
   };
 
+  
   const renderActions = (row) => {
-    if (tab === 'permission') {
-      if (row.status !== 'Pending') return <span className="text-muted">—</span>;
-      return (
-        <>
-          <button className="btn btn-sm btn-success me-2" onClick={() => act(row, 'approve')}>Approve</button>
-          <button className="btn btn-sm btn-danger" onClick={() => act(row, 'reject')}>Reject</button>
-        </>
-      );
-    }
-
-    // FIX: Leave/Special tabs only ever show HR-stage actions on a
-    // Forwarded request. A Pending row (if it ever appears) shows a
-    // status message instead of buttons — HR has no action to take on it.
     if (row.status === 'Forwarded') {
       return (
         <>
           <button className="btn btn-sm btn-success me-2" onClick={() => act(row, 'approve')}>Approve</button>
-          <button className="btn btn-sm btn-danger" onClick={() => act(row, 'reject')}>Reject (LOP)</button>
+          <button className="btn btn-sm btn-danger" onClick={() => act(row, 'reject')}>
+            {tab === 'permission' ? 'Reject' : 'Reject (LOP)'}
+          </button>
         </>
       );
     }
@@ -134,17 +119,17 @@ export default function AdminLeaveManagement() {
           <h5 className="mb-0">Request Management</h5>
           <select className="form-select w-auto" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
-            {/* FIX: 'Pending' removed — HR never filters to a stage it can't act on */}
-            {tab !== 'permission' && <option value="Forwarded">Forwarded</option>}
+            {/* 'Pending' intentionally excluded on every tab — HR can never act on it */}
+            <option value="Forwarded">Forwarded</option>
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
           </select>
         </div>
         <div className="card-body">
           <ul className="nav nav-tabs mb-3">
-            <li className="nav-item"><button className={`nav-link ${tab === 'leave' ? 'active' : ''}`} onClick={() => setTab('leave')}><i className="fas fa-calendar me-1"></i>Leave Requests</button></li>
-            <li className="nav-item"><button className={`nav-link ${tab === 'permission' ? 'active' : ''}`} onClick={() => setTab('permission')}><i className="fas fa-clock me-1"></i>Permission Requests</button></li>
-            <li className="nav-item"><button className={`nav-link ${tab === 'special' ? 'active' : ''}`} onClick={() => setTab('special')}><i className="fas fa-star me-1"></i>Special Leave Requests</button></li>
+            <li className="nav-item"><button className={`nav-link ${tab === 'leave' ? 'active' : ''}`} onClick={() => { setTab('leave'); setStatusFilter(''); }}><i className="fas fa-calendar me-1"></i>Leave Requests</button></li>
+            <li className="nav-item"><button className={`nav-link ${tab === 'permission' ? 'active' : ''}`} onClick={() => { setTab('permission'); setStatusFilter(''); }}><i className="fas fa-clock me-1"></i>Permission Requests</button></li>
+            <li className="nav-item"><button className={`nav-link ${tab === 'special' ? 'active' : ''}`} onClick={() => { setTab('special'); setStatusFilter(''); }}><i className="fas fa-star me-1"></i>Special Leave Requests</button></li>
           </ul>
 
           <table className="table table-hover">

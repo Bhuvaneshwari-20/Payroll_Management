@@ -1,13 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import { getPermissionManagerQueue, permissionManagerAction } from '../../services/permissionApi';
-
-const STATUS_BADGE = {
-  Pending: 'bg-warning text-dark',
-  Approved: 'bg-success',
-  Rejected: 'bg-danger',
-  Cancelled: 'bg-secondary',
-};
+import LeaveStatusBadge from '../leave/LeaveStatusBadge';
 
 export default function ManagerPermissionQueue() {
   const [rows, setRows] = useState([]);
@@ -18,9 +12,12 @@ export default function ManagerPermissionQueue() {
 
   useEffect(() => { load(); }, [load]);
 
+  // FIX: Manager could previously "Approve" a permission directly, which
+  // skipped HR entirely. Now the only two moves are Forward (to HR) or
+  // Reject (final, never reaches HR) — same rule as Leave.
   const act = async (id, action) => {
     const { value: comments } = await Swal.fire({
-      title: action === 'approve' ? 'Approve this permission?' : 'Reject this permission?',
+      title: action === 'forward' ? 'Forward to HR?' : 'Reject this permission?',
       input: 'textarea',
       inputLabel: 'Comments (optional)',
       showCancelButton: true,
@@ -34,8 +31,6 @@ export default function ManagerPermissionQueue() {
   return (
     <table className="table table-bordered mt-3">
       <thead>
-        {/* FIX: was r.date / r.permission_type — those columns don't exist
-            on permission_requests. Real columns are request_date / from_time / to_time. */}
         <tr><th>Employee</th><th>Date</th><th>From</th><th>To</th><th>Reason</th><th>Status</th><th>Actions</th></tr>
       </thead>
       <tbody>
@@ -46,11 +41,11 @@ export default function ManagerPermissionQueue() {
             <td>{r.from_time}</td>
             <td>{r.to_time}</td>
             <td>{r.reason}</td>
-            <td><span className={`badge ${STATUS_BADGE[r.status] || 'bg-secondary'}`}>{r.status}</span></td>
+            <td><LeaveStatusBadge status={r.status} isLop={false} /></td>
             <td>
               {r.status === 'Pending' ? (
                 <>
-                  <button className="btn btn-sm btn-success me-2" onClick={() => act(r.id, 'approve')}>Approve</button>
+                  <button className="btn btn-sm btn-success me-2" onClick={() => act(r.id, 'forward')}>Forward to HR</button>
                   <button className="btn btn-sm btn-danger" onClick={() => act(r.id, 'reject')}>Reject</button>
                 </>
               ) : (

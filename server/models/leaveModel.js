@@ -440,3 +440,27 @@ exports.getAllForManager = async (managerEmployeeId, category, statusFilter) => 
 };
 
 exports.calculateLeaveDays = calculateLeaveDays;
+
+
+exports.getHRStats = async (category) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const [[stats]] = await db.query(
+    `SELECT
+       SUM(CASE WHEN status = 'Forwarded' THEN 1 ELSE 0 END) AS pending,
+       SUM(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END) AS approved,
+       SUM(CASE WHEN status = 'Rejected' AND rejected_by_stage = 'hr' THEN 1 ELSE 0 END) AS rejected,
+       SUM(CASE WHEN status = 'Approved' AND DATE(hr_action_at) = ? THEN 1 ELSE 0 END) AS approved_today
+     FROM leave_requests
+     WHERE category = ?`,
+    [today, category]
+  );
+  const pending = Number(stats.pending) || 0;
+  const approved = Number(stats.approved) || 0;
+  const rejected = Number(stats.rejected) || 0;
+  return {
+    total: pending + approved + rejected,
+    pending,
+    rejected,
+    approved_today: Number(stats.approved_today) || 0,
+  };
+};

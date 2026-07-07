@@ -18,5 +18,6 @@ router.put('/hr-action/:id', protect, leaveController.hrAction);
 router.get('/stats', protect, leaveController.getRequestStats);
 router.get('/org-stats', protect, leaveController.getOrgStats);
 router.get('/manager/all', protect, leaveController.getManagerAllRequests);
+router.get('/hr-stats', protect, leaveController.getHRStats);
 
 module.exports = router;

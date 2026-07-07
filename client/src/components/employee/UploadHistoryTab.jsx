@@ -1,12 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 import employeeService, { FILE_BASE } from '../../services/employeeService';
+import DataTable from '../common/DataTable';
 
 export default function UploadHistoryTab() {
   const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const load = () => {
-    employeeService.getUploadHistory().then((res) => { if (res.success) setHistory(res.data); });
+    setLoading(true);
+    employeeService.getUploadHistory()
+      .then((res) => { if (res.success) setHistory(res.data); })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);
@@ -39,38 +44,39 @@ export default function UploadHistoryTab() {
         <button className="btn btn-sm btn-danger" onClick={clearHistory}><i className="fas fa-trash me-2"></i>Clear History</button>
       </div>
       <div className="card-body">
-        <div className="table-responsive">
-          <table className="table table-hover" width="100%">
-            <thead>
-              <tr>
-                <th>Date & Time</th><th>Upload Type</th><th>File Name</th><th>Records</th>
-                <th>Success</th><th>Errors</th><th>Status</th><th>Uploaded By</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.length === 0 && <tr><td colSpan="9" className="text-center">No upload history</td></tr>}
-              {history.map((h, idx) => (
-                <tr key={idx}>
-                  <td>{h.upload_date}</td>
-                  <td><span className="badge bg-info">{h.upload_type}</span></td>
-                  <td>{h.file_name}</td>
-                  <td>{h.records_count}</td>
-                  <td><span className="text-success">{h.success_count}</span></td>
-                  <td><span className="text-danger">{h.error_count}</span></td>
-                  <td>{h.status === 'completed'
-                    ? <span className="badge bg-success">Completed</span>
-                    : <span className="badge bg-warning">Partial</span>}</td>
-                  <td>{h.uploaded_by_name || 'System'}</td>
-                  <td>
-                    <button className="btn btn-sm btn-primary" onClick={() => downloadFile(h.file_path, h.file_name)}>
-                      <i className="fas fa-download"></i>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {loading ? (
+          <div className="text-center py-3">Loading...</div>
+        ) : (
+          <DataTable
+            data={history}
+            rowKey={(row, i) => row.id ?? i}
+            searchPlaceholder="Search uploads..."
+            emptyMessage="No upload history"
+            columns={[
+              { key: 'upload_date', label: 'Date & Time' },
+              { key: 'upload_type', label: 'Upload Type', render: (h) => <span className="badge bg-info">{h.upload_type}</span> },
+              { key: 'file_name', label: 'File Name' },
+              { key: 'records_count', label: 'Records' },
+              { key: 'success_count', label: 'Success', render: (h) => <span className="text-success">{h.success_count}</span> },
+              { key: 'error_count', label: 'Errors', render: (h) => <span className="text-danger">{h.error_count}</span> },
+              {
+                key: 'status', label: 'Status',
+                render: (h) => h.status === 'completed'
+                  ? <span className="badge bg-success">Completed</span>
+                  : <span className="badge bg-warning">Partial</span>,
+              },
+              { key: 'uploaded_by_name', label: 'Uploaded By', render: (h) => h.uploaded_by_name || 'System' },
+              {
+                key: 'actions', label: 'Actions', sortable: false,
+                render: (h) => (
+                  <button className="btn btn-sm btn-primary" onClick={() => downloadFile(h.file_path, h.file_name)}>
+                    <i className="fas fa-download"></i>
+                  </button>
+                ),
+              },
+            ]}
+          />
+        )}
       </div>
     </div>
   );

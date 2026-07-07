@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import employeeService from '../../services/employeeService';
+import DataTable from '../common/DataTable';
 
 export default function ManagersTab() {
   const [managers, setManagers] = useState([]);
@@ -22,27 +23,31 @@ export default function ManagersTab() {
   useEffect(() => { loadManagers(); }, [loadManagers]);
 
   async function showAddManagerModal() {
-    // Preload departments before the dialog opens
     let departments = [];
     try {
       const deptRes = await employeeService.getDepartments();
       if (deptRes.success) departments = deptRes.data || [];
-    } catch {
-      /* dropdown just stays empty on failure, same as PHP */
-    }
+    } catch { /* noop */ }
 
     const deptOptions = departments.map((d) => `<option value="${d.id}">${d.name}</option>`).join('');
 
     const result = await Swal.fire({
       title: 'Add Manager',
+      width: 440,
+      padding: '1.5rem',
+      scrollbarPadding: false,
       html: `
-        <select id="managerDept" class="swal2-select" style="width:100%;display:block;margin-bottom:10px;">
-          <option value="">Select Department</option>
-          ${deptOptions}
-        </select>
-        <select id="managerEmp" class="swal2-select" style="width:100%;display:block;">
-          <option value="">Select Employee</option>
-        </select>
+        <div style="text-align:left;">
+          <label style="display:block;font-weight:500;margin-bottom:4px;font-size:0.9rem;">Department</label>
+          <select id="managerDept" class="form-select" style="box-sizing:border-box;width:100%;padding:8px 10px;border:1px solid #ced4da;border-radius:6px;margin-bottom:14px;font-size:0.95rem;">
+            <option value="">Select Department</option>
+            ${deptOptions}
+          </select>
+          <label style="display:block;font-weight:500;margin-bottom:4px;font-size:0.9rem;">Employee</label>
+          <select id="managerEmp" class="form-select" style="box-sizing:border-box;width:100%;padding:8px 10px;border:1px solid #ced4da;border-radius:6px;font-size:0.95rem;">
+            <option value="">Select Employee</option>
+          </select>
+        </div>
       `,
       showCancelButton: true,
       confirmButtonText: 'OK',
@@ -51,12 +56,10 @@ export default function ManagersTab() {
       didOpen: () => {
         const deptSelect = document.getElementById('managerDept');
         const empSelect = document.getElementById('managerEmp');
-
         deptSelect.addEventListener('change', async () => {
           const deptId = deptSelect.value;
           empSelect.innerHTML = '<option value="">Select Employee</option>';
           if (!deptId) return;
-
           try {
             const empRes = await employeeService.getEmployees({ department: deptId, status: 'active' });
             if (empRes.success) {
@@ -67,9 +70,7 @@ export default function ManagersTab() {
                 empSelect.appendChild(opt);
               });
             }
-          } catch {
-            /* leave dropdown empty on failure */
-          }
+          } catch { /* noop */ }
         });
       },
       preConfirm: () => {
@@ -87,34 +88,20 @@ export default function ManagersTab() {
 
     try {
       const res = await employeeService.addManager(result.value.dept, result.value.emp);
-      if (res.success) {
-        Swal.fire('Added!', res.message, 'success');
-        loadManagers();
-      } else {
-        Swal.fire('Error', res.message, 'error');
-      }
+      if (res.success) { Swal.fire('Added!', res.message, 'success'); loadManagers(); }
+      else Swal.fire('Error', res.message, 'error');
     } catch {
       Swal.fire('Error', 'Failed to add manager', 'error');
     }
   }
 
   async function removeManager(id) {
-    const result = await Swal.fire({
-      title: 'Remove?',
-      text: 'Remove this manager?',
-      icon: 'warning',
-      showCancelButton: true,
-    });
+    const result = await Swal.fire({ title: 'Remove?', text: 'Remove this manager?', icon: 'warning', showCancelButton: true });
     if (!result.isConfirmed) return;
-
     try {
       const res = await employeeService.deleteManager(id);
-      if (res.success) {
-        Swal.fire('Removed!', res.message, 'success');
-        loadManagers();
-      } else {
-        Swal.fire('Error', res.message, 'error');
-      }
+      if (res.success) { Swal.fire('Removed!', res.message, 'success'); loadManagers(); }
+      else Swal.fire('Error', res.message, 'error');
     } catch {
       Swal.fire('Error', 'Failed to remove manager', 'error');
     }
@@ -129,36 +116,28 @@ export default function ManagersTab() {
         </button>
       </div>
       <div className="card-body">
-        <table className="table table-hover">
-          <thead>
-            <tr>
-              <th>Department</th>
-              <th>Employee Code</th>
-              <th>Manager Name</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan="4" className="text-center py-3">Loading...</td></tr>
-            )}
-            {!loading && managers.length === 0 && (
-              <tr><td colSpan="4" className="text-center py-3">No managers found</td></tr>
-            )}
-            {!loading && managers.map((mgr) => (
-              <tr key={mgr.id}>
-                <td>{mgr.department_name}</td>
-                <td>{mgr.employee_code}</td>
-                <td>{mgr.name}</td>
-                <td>
+        {loading ? (
+          <div className="text-center py-3">Loading...</div>
+        ) : (
+          <DataTable
+            data={managers}
+            searchPlaceholder="Search managers..."
+            emptyMessage="No managers found"
+            columns={[
+              { key: 'department_name', label: 'Department' },
+              { key: 'employee_code', label: 'Employee Code' },
+              { key: 'name', label: 'Manager Name' },
+              {
+                key: 'actions', label: 'Actions', sortable: false,
+                render: (mgr) => (
                   <button className="btn btn-sm btn-danger" onClick={() => removeManager(mgr.id)}>
                     <i className="fas fa-trash"></i>
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                ),
+              },
+            ]}
+          />
+        )}
       </div>
     </div>
   );

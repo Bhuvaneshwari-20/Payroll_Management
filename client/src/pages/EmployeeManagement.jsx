@@ -9,6 +9,7 @@ import BulkUploadTab from '../components/employee/BulkUploadTab';
 import UploadHistoryTab from '../components/employee/UploadHistoryTab';
 import './EmployeeManagement.css';
 import defaultProfile from "../assets/images/default-profile.png";
+import DataTable from '../components/common/DataTable';
 
 const TABS = [
     { key: 'employees', label: 'Employees', icon: 'fa-users' },
@@ -18,6 +19,27 @@ const TABS = [
     { key: 'uploadHistory', label: 'Upload History', icon: 'fa-history' },
     { key: 'statusChanges', label: 'Status Changes', icon: 'fa-exchange-alt' },
 ];
+
+// Clickable column header with a stacked ▲▼ indicator. The active
+// direction is highlighted; the inactive arrow stays muted.
+function SortableTh({ label, sortKey, sortConfig, onSort }) {
+    const isActive = sortConfig.key === sortKey;
+    const isAsc = isActive && sortConfig.direction === 'asc';
+    const isDesc = isActive && sortConfig.direction === 'desc';
+    return (
+        <th
+            onClick={() => onSort(sortKey)}
+            style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+            title="Click to sort"
+        >
+            {label}
+            <span style={{ display: 'inline-flex', flexDirection: 'column', marginLeft: 6, verticalAlign: 'middle', lineHeight: '0.7' }}>
+                <span style={{ fontSize: '0.6rem', color: isAsc ? '#0d6efd' : '#adb5bd' }}>▲</span>
+                <span style={{ fontSize: '0.6rem', color: isDesc ? '#0d6efd' : '#adb5bd' }}>▼</span>
+            </span>
+        </th>
+    );
+}
 
 export default function EmployeeManagement() {
     const [activeTab, setActiveTab] = useState('employees');
@@ -33,6 +55,39 @@ export default function EmployeeManagement() {
     // Modal state
     const [modalOpen, setModalOpen] = useState(false);
     const [editingEmployeeId, setEditingEmployeeId] = useState(null);
+
+    // Column sorting — click a header to sort asc, click again for desc,
+    // click a third time to clear back to the server's default order.
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+    const handleSort = (key) => {
+        setSortConfig((prev) => {
+            if (prev.key !== key) return { key, direction: 'asc' };
+            if (prev.direction === 'asc') return { key, direction: 'desc' };
+            return { key: null, direction: 'asc' };
+        });
+    };
+
+    const sortedEmployees = useMemo(() => {
+        if (!sortConfig.key) return employees;
+        const getValue = (emp) => {
+            switch (sortConfig.key) {
+                case 'employee_code': return (emp.employee_code || '').toLowerCase();
+                case 'name': return `${emp.first_name || ''} ${emp.last_name || ''}`.trim().toLowerCase();
+                case 'department_name': return (emp.department_name || '').toLowerCase();
+                case 'role_name': return (emp.role_name || '').toLowerCase();
+                case 'status': return (emp.status || '').toLowerCase();
+                default: return '';
+            }
+        };
+        return [...employees].sort((a, b) => {
+            const aVal = getValue(a);
+            const bVal = getValue(b);
+            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [employees, sortConfig]);
 
     const loadDepartments = useCallback(async () => {
         try {
@@ -198,122 +253,113 @@ export default function EmployeeManagement() {
                     ))}
                 </ul>
 
-                {activeTab === 'employees' && (
-                    <div>
-                        <div className="kr-card mb-4">
-                            <div className="kr-card-body">
-                                <div className="row">
-                                    <div className="col-md-3 mb-3">
-                                        <label className="form-label">Department</label>
-                                        <select
-                                            className="form-select"
-                                            value={filters.department}
-                                            onChange={(e) => setFilters((f) => ({ ...f, department: e.target.value, role: '' }))}
-                                        >
-                                            <option value="">All Departments</option>
-                                            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="col-md-3 mb-3">
-                                        <label className="form-label">Role</label>
-                                        <select
-                                            className="form-select"
-                                            value={filters.role}
-                                            onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value }))}
-                                        >
-                                            <option value="">All Roles</option>
-                                            {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="col-md-3 mb-3">
-                                        <label className="form-label">Status</label>
-                                        <select
-                                            className="form-select"
-                                            value={filters.status}
-                                            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
-                                        >
-                                            <option value="">All Status</option>
-                                            <option value="active">Active</option>
-                                            <option value="inactive">Inactive</option>
-                                        </select>
-                                    </div>
-                                    <div className="col-md-3 mb-3">
-                                        <label className="form-label">Search</label>
-                                        <input
-                                            type="text"
-                                            className="form-control"
-                                            placeholder="Search..."
-                                            value={filters.search}
-                                            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+            
 
-                        <div className="card">
-                            <div className="card-header">
-                                <h5 className="mb-0"><i className="fas fa-users me-2"></i>Employees List</h5>
-                            </div>
-                            <div className="card-body">
-                                <div className="table-responsive">
-                                    <table className="table" width="100%">
-                                        <thead>
-                                            <tr>
-                                                <th>ID</th><th>Image</th><th>Name</th><th>Department</th><th>Role</th>
-                                                <th>Email</th><th>Phone</th><th>Status</th><th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {loading && (
-                                                <tr><td colSpan="9" className="text-center py-4">Loading...</td></tr>
-                                            )}
-                                            {!loading && employees.length === 0 && (
-                                                <tr><td colSpan="9" className="text-center py-4">No employees found</td></tr>
-                                            )}
-                                            {!loading && employees.map((emp) => (
-                                                <tr key={emp.id}>
-                                                    <td>{emp.employee_code || '-'}</td>
-                                                    <td>
-                                                        <img
-                                                            src={`${FILE_BASE}/uploads/profiles/${emp.profile_image || "default.png"}`}
-                                                            className="rounded-circle"
-                                                            style={{ width: 40, height: 40, objectFit: "cover" }}
-                                                            alt=""
-                                                            onError={(e) => {
-                                                                e.currentTarget.onerror = null;   // prevent infinite loop
-                                                                e.currentTarget.src = defaultProfile;
-                                                            }}
-                                                        />
-                                                    </td>
-                                                    <td>{emp.first_name} {emp.last_name}</td>
-                                                    <td>{emp.department_name}</td>
-                                                    <td>{emp.role_name}</td>
-                                                    <td>{emp.email}</td>
-                                                    <td>{emp.phone}</td>
-                                                    <td>
-                                                        {emp.status === 'active'
-                                                            ? <span className="badge bg-success">Active</span>
-                                                            : <span className="badge bg-danger">Inactive</span>}
-                                                    </td>
-                                                    <td>
-                                                        <button className="btn btn-sm btn-primary me-1" onClick={() => openEditModal(emp.id)}><i className="fas fa-edit"></i></button>
-                                                        {emp.status === 'active' ? (
-                                                            <button className="btn btn-sm btn-warning me-1" title="Deactivate" onClick={() => handleToggleStatus(emp.id, emp.status)}><i className="fas fa-user-slash"></i></button>
-                                                        ) : (
-                                                            <button className="btn btn-sm btn-success me-1" title="Activate" onClick={() => handleToggleStatus(emp.id, emp.status)}><i className="fas fa-user-check"></i></button>
-                                                        )}
-                                                        <button className="btn btn-sm btn-danger" onClick={() => handleDelete(emp.id)}><i className="fas fa-trash"></i></button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
+
+{activeTab === 'employees' && (
+  <div>
+    <div className="kr-card mb-4">
+      <div className="kr-card-body">
+        <div className="row">
+          <div className="col-md-3 mb-3">
+            <label className="form-label">Department</label>
+            <select
+              className="form-select"
+              value={filters.department}
+              onChange={(e) => setFilters((f) => ({ ...f, department: e.target.value, role: '' }))}
+            >
+              <option value="">All Departments</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
+          <div className="col-md-3 mb-3">
+            <label className="form-label">Role</label>
+            <select
+              className="form-select"
+              value={filters.role}
+              onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value }))}
+            >
+              <option value="">All Roles</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </div>
+          <div className="col-md-3 mb-3">
+            <label className="form-label">Status</label>
+            <select
+              className="form-select"
+              value={filters.status}
+              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
+            >
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div className="card">
+      <div className="card-header">
+        <h5 className="mb-0"><i className="fas fa-users me-2"></i>Employees List</h5>
+      </div>
+      <div className="card-body">
+        {loading ? (
+          <div className="text-center py-4">Loading...</div>
+        ) : (
+          <DataTable
+            data={employees}
+            searchPlaceholder="Search by ID, Name, or Phone..."
+            emptyMessage="No employees found"
+            columns={[
+              { key: 'employee_code', label: 'ID' },
+              {
+                key: 'image', label: 'Image', sortable: false,
+                render: (emp) => (
+                  <img
+                    src={`${FILE_BASE}/uploads/profiles/${emp.profile_image || 'default.png'}`}
+                    className="rounded-circle"
+                    style={{ width: 40, height: 40, objectFit: 'cover' }}
+                    alt=""
+                    onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = defaultProfile; }}
+                  />
+                ),
+              },
+              {
+                key: 'name', label: 'Name',
+                accessor: (emp) => `${emp.first_name || ''} ${emp.last_name || ''}`.trim(),
+              },
+              { key: 'department_name', label: 'Department' },
+              { key: 'role_name', label: 'Role' },
+              { key: 'email', label: 'Email' },
+              { key: 'phone', label: 'Phone' },
+              {
+                key: 'status', label: 'Status',
+                render: (emp) => emp.status === 'active'
+                  ? <span className="badge bg-success">Active</span>
+                  : <span className="badge bg-danger">Inactive</span>,
+              },
+              {
+                key: 'actions', label: 'Actions', sortable: false,
+                render: (emp) => (
+                  <>
+                    <button className="btn btn-sm btn-primary me-1" onClick={() => openEditModal(emp.id)}><i className="fas fa-edit"></i></button>
+                    {emp.status === 'active' ? (
+                      <button className="btn btn-sm btn-warning me-1" title="Deactivate" onClick={() => handleToggleStatus(emp.id, emp.status)}><i className="fas fa-user-slash"></i></button>
+                    ) : (
+                      <button className="btn btn-sm btn-success me-1" title="Activate" onClick={() => handleToggleStatus(emp.id, emp.status)}><i className="fas fa-user-check"></i></button>
+                    )}
+                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(emp.id)}><i className="fas fa-trash"></i></button>
+                  </>
+                ),
+              },
+            ]}
+          />
+        )}
+      </div>
+    </div>
+  </div>
+)}
 
                 {activeTab === 'managers' && <ManagersTab />}
                 {activeTab === 'statusHistory' && <StatusHistoryTab />}

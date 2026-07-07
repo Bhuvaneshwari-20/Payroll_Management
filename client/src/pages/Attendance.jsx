@@ -6,13 +6,7 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-/* ============================================================
-   Shared table used by both Daily and Date-wise tabs.
-   The only thing that changed here: on a successful save it now
-   calls onSaved(date) so the PARENT can refresh the one shared
-   Attendance Matrix — this table itself no longer owns any
-   report/matrix state.
-   ============================================================ */
+
 function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
   const [employees, setEmployees] = useState([]);
   const [statusMap, setStatusMap] = useState({});
@@ -62,9 +56,7 @@ function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
     load();
   }, [load]);
 
-  // Persists to `attendance` (employee_id, date, status, is_half_day, remarks,
-  // marked_by, source='manual') via POST /api/attendance/mark, which upserts
-  // on the employee_id+date unique key — see attendanceController.js.
+
   const handleSave = async () => {
     setSaving(true);
     setMessage(null);
@@ -78,11 +70,9 @@ function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
       const res = await attendanceService.markAttendance(date, records);
       setMessage({ type: 'success', text: res.message || 'Saved' });
 
-      // Re-pull from DB to confirm what actually got persisted.
       await load();
 
-      // Tell the parent so the shared Attendance Matrix refreshes too,
-      // without needing a page reload or a tab switch.
+     
       if (onSaved) onSaved(date);
     } catch (err) {
       setMessage({

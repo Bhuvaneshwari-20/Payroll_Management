@@ -18,6 +18,8 @@ app.use('/api/attendance', require('./routes/attendanceRoutes'));
 app.use('/api/leave', require('./routes/leaveRoutes'));
 app.use('/api/permission', require('./routes/permissionRoutes'));
 app.use('/api/leave-allocation', require('./routes/leaveAllocationRoutes'));
+app.use('/api/salary', require('./routes/salaryRoutes'));
+
 
 
 app.listen(5000, () => {

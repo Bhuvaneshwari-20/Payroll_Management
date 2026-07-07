@@ -12,6 +12,7 @@ import LeaveManagement from './pages/LeaveManagement';
 import ManagerLeaveManagement from './pages/ManagerLeaveManagement';
 import AdminLeaveManagement from './pages/AdminLeaveManagement';
 import LeaveAllocation from './pages/LeaveAllocation';
+import SalaryReport from './pages/SalaryReport';
 
 export default function App() {
   return (
@@ -43,7 +44,7 @@ export default function App() {
 
         {/* Still pending conversion — Phase 2 */}
         <Route path="/attendance-report" element={<ComingSoon title="Attendance Report" />} />
-        <Route path="/salary-report" element={<ComingSoon title="Salary Report" />} />
+       <Route path="/salary-report" element={<SalaryReport />} />
         <Route path="/payslip-generator" element={<ComingSoon title="Payslip Generator" />} />
         <Route path="/employee-passwords" element={<ComingSoon title="Employee Password Management" />} />
         <Route path="/payslip" element={<ComingSoon title="My Payslips" />} />
