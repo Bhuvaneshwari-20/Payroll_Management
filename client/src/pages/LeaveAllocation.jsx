@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import { getBalances, assignAll, assignSpecific, resetAll } from '../services/leaveAllocationApi';
+import HolidayCalendar from './HolidayCalendar';
+import './HolidayCalendar.css';
 
 export default function LeaveAllocation() {
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'specific'
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'specific' | 'holiday'
   const [allForm, setAllForm] = useState({ etype: '', days: '' });
   const [specForm, setSpecForm] = useState({ empid: '', days: '' });
   const [balances, setBalances] = useState([]);
@@ -72,18 +74,24 @@ export default function LeaveAllocation() {
 
   return (
     <div>
-      <div className="d-flex justify-content-center mb-4">
+      <div className="d-flex justify-content-center mb-4 flex-wrap gap-2">
         <button
-          className={`btn me-2 ${activeTab === 'all' ? 'btn-success' : 'btn-outline-secondary'}`}
+          className={`ha-btn-toggle ${activeTab === 'all' ? 'active' : 'inactive'}`}
           onClick={() => setActiveTab('all')}
         >
           Enable Leave for All Employees
         </button>
         <button
-          className={`btn ${activeTab === 'specific' ? 'btn-success' : 'btn-outline-secondary'}`}
+          className={`ha-btn-toggle ${activeTab === 'specific' ? 'active' : 'inactive'}`}
           onClick={() => setActiveTab('specific')}
         >
           Enable Leave for Specific Employee
+        </button>
+        <button
+          className={`ha-btn-toggle ${activeTab === 'holiday' ? 'active' : 'inactive'}`}
+          onClick={() => setActiveTab('holiday')}
+        >
+          Holiday Assignment
         </button>
       </div>
 
@@ -143,31 +151,37 @@ export default function LeaveAllocation() {
         </form>
       )}
 
-      <div className="card">
-        <div className="card-header d-flex justify-content-between align-items-center">
-          <h5 className="mb-0">Leave Balances</h5>
-          <button className="btn btn-danger" onClick={handleReset}>Reset All</button>
+      {activeTab === 'holiday' && <HolidayCalendar />}
+
+      {/* Leave Balances table is hidden on the Holiday Assignment tab,
+          same as your PHP (#leaveBalanceTable hidden for option3). */}
+      {activeTab !== 'holiday' && (
+        <div className="card">
+          <div className="card-header d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">Leave Balances</h5>
+            <button className="btn btn-danger" onClick={handleReset}>Reset All</button>
+          </div>
+          <div className="card-body">
+            <table className="table table-striped table-hover">
+              <thead>
+                <tr><th>S.No</th><th>Code</th><th>Name</th><th>Type</th><th>Leave Balance</th></tr>
+              </thead>
+              <tbody>
+                {balances.map((emp, i) => (
+                  <tr key={emp.id}>
+                    <td>{i + 1}</td>
+                    <td>{emp.employee_code}</td>
+                    <td>{emp.first_name} {emp.last_name}</td>
+                    <td>{emp.jtype}</td>
+                    <td>{emp.leave_balance}</td>
+                  </tr>
+                ))}
+                {balances.length === 0 && <tr><td colSpan="5" className="text-center">No employees found</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div className="card-body">
-          <table className="table table-striped table-hover">
-            <thead>
-              <tr><th>S.No</th><th>Code</th><th>Name</th><th>Type</th><th>Leave Balance</th></tr>
-            </thead>
-            <tbody>
-              {balances.map((emp, i) => (
-                <tr key={emp.id}>
-                  <td>{i + 1}</td>
-                  <td>{emp.employee_code}</td>
-                  <td>{emp.first_name} {emp.last_name}</td>
-                  <td>{emp.jtype}</td>
-                  <td>{emp.leave_balance}</td>
-                </tr>
-              ))}
-              {balances.length === 0 && <tr><td colSpan="5" className="text-center">No employees found</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

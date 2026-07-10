@@ -1,0 +1,16 @@
+import api from './api';
+
+export const fetchDepartments = () => api.get('/attendance/meta/departments');
+
+export const fetchEmployeesLite = (departmentId) =>
+  api.get('/attendance/meta/employees', {
+    params: departmentId ? { department_id: departmentId } : {},
+  });
+
+export const generateAttendanceReport = (filters) => api.post('/attendance/report', filters);
+
+export const fetchEmployeeAttendanceDetail = (employeeCode, params) =>
+  api.get(`/attendance/report/${employeeCode}`, { params });
+
+export const exportAttendanceExcel = (filters) =>
+  api.get('/attendance/export/excel', { params: filters, responseType: 'blob' });

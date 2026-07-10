@@ -1,0 +1,103 @@
+const db = require("../config/db");
+
+// NOTE: your `attendance` table has no in_time/out_time/working_hours columns
+// at all — this is a manual/bulk status-marking system, not a punch-clock
+// system. SHIFT_START_TIME and "late" detection are kept as no-ops (always
+// '-') rather than removed outright, so the frontend's existing columns
+// don't need to change — just nothing populates them until/unless you add
+// real punch-time tracking.
+const SHIFT_START_TIME = "09:15:00";
+
+function isValidDateStr(str) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(str || "");
+}
+
+// Maps the DB's actual status representation (attendance.status enum +
+// is_half_day flag + holidays.type for that date) into the single-letter
+// codes the frontend (AttendanceDetailModal / bucketFor in the controller)
+// already expects. Built in SQL so it stays fast across a full date range.
+const STATUS_CASE_SQL = `
+  CASE
+    WHEN a.status = 'Holiday' AND h.type = 'Week-Off' THEN 'WO'
+    WHEN a.status = 'Holiday' THEN 'H'
+    WHEN a.status = 'Present' AND a.is_half_day = 1 THEN 'S'
+    WHEN a.status = 'Present' THEN 'P'
+    WHEN a.status = 'Absent'  THEN 'AB'
+    WHEN a.status IN ('CL','SL','OD') THEN a.status
+    ELSE 'AB'
+  END
+`;
+
+exports.getRawRows = async ({ fromDate, toDate, departmentId, employeeCode }) => {
+  if (!isValidDateStr(fromDate) || !isValidDateStr(toDate)) {
+    throw new Error("Invalid date format, expected YYYY-MM-DD");
+  }
+
+  let sql = `
+    SELECT
+      e.employee_code, e.first_name, e.last_name,
+      e.joining_date, d.name AS department, d.id AS department_id,
+      a.date,
+      '-' AS in_time, '-' AS out_time, '-' AS working_hours,
+      ${STATUS_CASE_SQL} AS status,
+      a.remarks
+    FROM attendance a
+    INNER JOIN employees e ON e.id = a.employee_id AND e.status = 'active'
+    LEFT JOIN departments d ON d.id = e.department_id
+    LEFT JOIN holidays h ON h.hdate = a.date
+    WHERE a.date BETWEEN ? AND ?
+  `;
+  const params = [fromDate, toDate];
+
+  if (departmentId) {
+    sql += " AND d.id = ?";
+    params.push(departmentId);
+  }
+  if (employeeCode) {
+    sql += " AND e.employee_code = ?";
+    params.push(employeeCode);
+  }
+
+  sql += " ORDER BY e.employee_code, a.date";
+
+  const [rows] = await db.query(sql, params);
+  return rows;
+};
+
+// employees.manager_id points to `managers.id` (the managers table row),
+// NOT directly to another employees.id — same pattern used everywhere else
+// in this app (see employeeModel.js addManager / getManagerIdByEmployeeCode).
+// So: resolve the logged-in manager's own employees.id -> their row in
+// `managers` -> that managers.id -> employees whose manager_id matches it.
+exports.getTeamEmployeeCodes = async (managerUserId) => {
+  const [mgrRows] = await db.query(
+    "SELECT id FROM managers WHERE employee_id = ? AND status = 'active' LIMIT 1",
+    [managerUserId]
+  );
+  if (!mgrRows.length) return [];
+
+  const [rows] = await db.query(
+    "SELECT employee_code FROM employees WHERE manager_id = ? AND status = 'active'",
+    [mgrRows[0].id]
+  );
+  return rows.map((r) => r.employee_code);
+};
+
+exports.getDepartments = async () => {
+  const [rows] = await db.query("SELECT id, name FROM departments ORDER BY name");
+  return rows;
+};
+
+exports.getActiveEmployeesLite = async (departmentId) => {
+  let sql = "SELECT employee_code, first_name, last_name FROM employees WHERE status='active'";
+  const params = [];
+  if (departmentId) {
+    sql += " AND department_id = ?";
+    params.push(departmentId);
+  }
+  sql += " ORDER BY first_name";
+  const [rows] = await db.query(sql, params);
+  return rows;
+};
+
+exports.SHIFT_START_TIME = SHIFT_START_TIME;

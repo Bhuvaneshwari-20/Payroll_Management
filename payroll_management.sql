@@ -523,3 +523,53 @@ ALTER TABLE permission_requests
 ALTER TABLE employee_salary
   ADD COLUMN IF NOT EXISTS other_earning DECIMAL(10,2) DEFAULT 0.00,
   ADD COLUMN IF NOT EXISTS hold_mode ENUM('neft','cash') DEFAULT 'neft';
+
+
+  CREATE TABLE IF NOT EXISTS holidays (
+  id INT NOT NULL AUTO_INCREMENT,
+  hdate DATE NOT NULL,
+  days VARCHAR(20) NOT NULL,
+  type VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_hdate (hdate)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE IF NOT EXISTS `payslips` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `employee_code` VARCHAR(20) NOT NULL,
+  `emp_name` VARCHAR(150) DEFAULT NULL,
+  `from_date` DATE NOT NULL,
+  `to_date` DATE NOT NULL,
+  `payslip_month` VARCHAR(7) DEFAULT NULL,     -- 'YYYY-MM'
+  `net_salary` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `payslip_data` LONGTEXT NOT NULL,            -- full JSON snapshot (basic_fixed, hra_earned, etc.)
+  `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_emp_period` (`employee_code`, `from_date`, `to_date`),
+  KEY `idx_status` (`status`),
+  KEY `idx_employee_code` (`employee_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+ 
+ALTER TABLE employees
+  ADD COLUMN force_password_change TINYINT(1) NOT NULL DEFAULT 1;
+ 
+-- Backfill: any employee whose password still equals their employee_code
+-- (plain text, per your existing storage format) needs to change it.
+-- Everyone else is assumed to already have a real password, so leave them at 0.
+UPDATE employees
+  SET force_password_change = 0
+  WHERE pass <> employee_code;
+ 
+-- If you have bcrypt-hashed passwords mixed in (per authController.js's
+-- passwordMatches() function, which checks for a "$2a$/$2b$/$2y$" prefix),
+-- those are real custom passwords too — make sure they're not force_password_change = 1:
+UPDATE employees
+  SET force_password_change = 0
+  WHERE pass REGEXP '^\\$2[aby]\\$';
+ 

@@ -1,0 +1,28 @@
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+
+  /* Scrollable containers get clipped/blank when printed if left as
+     overflow:auto — force them to render fully. */
+  .print-area .table-responsive {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  @page {
+    size: landscape;
+  }
+}

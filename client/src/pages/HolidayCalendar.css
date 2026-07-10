@@ -1,0 +1,107 @@
+.ha-calendar-container {
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.ha-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  padding: 10px;
+  border-radius: 8px;
+  color: white;
+  margin-bottom: 15px;
+}
+
+.ha-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.ha-calendar-day {
+  padding: 8px;
+  text-align: center;
+  border-radius: 6px;
+  border: 1px solid #eee;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.ha-calendar-day:hover {
+  background: #f0f4f8;
+}
+
+.ha-calendar-day.empty {
+  cursor: default;
+}
+.ha-calendar-day.empty:hover {
+  background: transparent;
+}
+
+.ha-day-header {
+  font-weight: bold;
+  background: #f8f9fa;
+  cursor: default;
+}
+.ha-day-header:hover {
+  background: #f8f9fa;
+}
+
+.ha-holiday {
+  background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+  color: white;
+}
+.ha-holiday:hover {
+  background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+}
+
+.ha-holiday-text {
+  font-size: 0.65rem;
+  display: block;
+}
+
+.ha-btn-toggle {
+  padding: 10px 20px;
+  font-size: 16px;
+  border: none;
+}
+.ha-btn-toggle.active {
+  background-color: #4CAF50;
+  color: white;
+}
+.ha-btn-toggle.inactive {
+  background-color: #e9ecef;
+  color: black;
+}
+
+.ha-btn-custom {
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 5px;
+  transition: transform 0.15s;
+}
+.ha-btn-custom:hover {
+  transform: translateY(-1px);
+}
+.ha-btn-custom-success {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+.ha-btn-custom-primary {
+  background: linear-gradient(135deg, #007bff 0%, #6610f2 100%);
+}
+
+@media (max-width: 768px) {
+  .ha-calendar-container {
+    padding: 10px;
+  }
+  .ha-calendar-day {
+    padding: 4px;
+    font-size: 0.8rem;
+  }
+}

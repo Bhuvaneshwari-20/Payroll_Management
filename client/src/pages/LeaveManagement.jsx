@@ -20,6 +20,7 @@ export default function LeaveManagement() {
 
   const isPermission = category === 'permission';
 
+  
   const showHRTab = isHR && !isPermission;
 
   const handleCategoryChange = (next) => {

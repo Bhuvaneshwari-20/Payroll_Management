@@ -1,5 +1,7 @@
 const db = require('../config/db');
 
+// ==================== LEAVE BALANCE (existing) ====================
+
 // GET all active employees with their leave balance (for the table)
 exports.getBalances = async (req, res) => {
   try {
@@ -59,5 +61,175 @@ exports.resetAll = async (req, res) => {
     res.json({ success: true, message: `Reset ${result.affectedRows} employees successfully` });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ==================== HOLIDAY ASSIGNMENT (new) ====================
+// Mirrors your PHP: get_holiday_details, assign_sunday_leave, assign_longleave,
+// assign_dateleave, delete_leave_details — but against a unified `holidays`
+// table + a single `attendance` table, instead of per-month attendance_YYYYMM
+// tables and a separate `holiday` table.
+
+// GET /api/leave-allocation/holidays
+exports.getHolidays = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT id, DATE_FORMAT(hdate, '%Y-%m-%d') as hdate, days, type
+       FROM holidays ORDER BY hdate DESC`
+    );
+    res.json({ success: true, message: 'Holidays retrieved successfully', data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to retrieve holidays: ' + err.message });
+  }
+};
+
+// Marks any already-existing attendance rows for a date as Holiday.
+// (New attendance rows for future dates get created naturally when
+// Daily/Date-wise/Bulk attendance runs and sees the holidays table —
+// that's a read-side concern, not something we need to pre-populate here.)
+async function syncAttendanceToHoliday(conn, dateStr, remarks) {
+  await conn.query(
+    `UPDATE attendance SET status = 'Holiday', is_half_day = 0, remarks = ? WHERE date = ?`,
+    [remarks, dateStr]
+  );
+}
+
+// POST /api/leave-allocation/holidays/assign-sundays  { dates: ['2026-07-05', '2026-07-12', ...] }
+exports.assignSundays = async (req, res) => {
+  const conn = await db.getConnection();
+  try {
+    const { dates } = req.body;
+    if (!Array.isArray(dates) || dates.length === 0) {
+      return res.status(400).json({ success: false, message: 'No dates provided' });
+    }
+
+    // Check for existing dates first — same guard as PHP
+    const [existing] = await conn.query(
+      `SELECT hdate FROM holidays WHERE hdate IN (?)`,
+      [dates]
+    );
+    if (existing.length > 0) {
+      const existingDates = existing.map((r) => new Date(r.hdate).toISOString().slice(0, 10)).join(', ');
+      return res.status(409).json({ success: false, message: `Dates already assigned: ${existingDates}` });
+    }
+
+    await conn.beginTransaction();
+    for (const dateStr of dates) {
+      await conn.query(
+        `INSERT INTO holidays (hdate, days, type) VALUES (?, 'Sunday', 'Week-Off')`,
+        [dateStr]
+      );
+      await syncAttendanceToHoliday(conn, dateStr, 'Week-Off');
+    }
+    await conn.commit();
+
+    res.json({ success: true, message: 'Sundays assigned successfully' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: 'Error assigning Sunday leaves: ' + err.message });
+  } finally {
+    conn.release();
+  }
+};
+
+// POST /api/leave-allocation/holidays/assign-long  { ltype, fromDate, toDate }
+exports.assignLongLeave = async (req, res) => {
+  const conn = await db.getConnection();
+  try {
+    const { ltype, fromDate, toDate } = req.body;
+    if (!ltype || !fromDate || !toDate) {
+      return res.status(400).json({ success: false, message: 'Missing required parameters' });
+    }
+
+    // Build the date range
+    const dates = [];
+    const cur = new Date(fromDate);
+    const end = new Date(toDate);
+    while (cur <= end) {
+      dates.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const [existing] = await conn.query(`SELECT hdate FROM holidays WHERE hdate IN (?)`, [dates]);
+    if (existing.length > 0) {
+      const existingDates = existing.map((r) => new Date(r.hdate).toISOString().slice(0, 10)).join(', ');
+      return res.status(409).json({ success: false, message: `Dates already assigned: ${existingDates}` });
+    }
+
+    await conn.beginTransaction();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    for (const dateStr of dates) {
+      const dayName = dayNames[new Date(dateStr).getDay()];
+      await conn.query(`INSERT INTO holidays (hdate, days, type) VALUES (?, ?, ?)`, [dateStr, dayName, ltype]);
+      await syncAttendanceToHoliday(conn, dateStr, ltype);
+    }
+    await conn.commit();
+
+    res.json({ success: true, message: 'Long Leave Added Successfully' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: 'Error assigning long leave: ' + err.message });
+  } finally {
+    conn.release();
+  }
+};
+
+// POST /api/leave-allocation/holidays/assign-date  { date, leaveType, dayOfWeek }
+// Single-day assignment from clicking a day on the calendar.
+exports.assignDateLeave = async (req, res) => {
+  const conn = await db.getConnection();
+  try {
+    const { date, leaveType, dayOfWeek } = req.body;
+    if (!date || !leaveType || !dayOfWeek) {
+      return res.status(400).json({ success: false, message: 'Missing required parameters' });
+    }
+
+    const [existing] = await conn.query(`SELECT id FROM holidays WHERE hdate = ?`, [date]);
+    if (existing.length > 0) {
+      return res.status(409).json({ success: false, message: `Date already assigned: ${date}` });
+    }
+
+    await conn.beginTransaction();
+    await conn.query(`INSERT INTO holidays (hdate, days, type) VALUES (?, ?, ?)`, [date, dayOfWeek, leaveType]);
+    await syncAttendanceToHoliday(conn, date, leaveType);
+    await conn.commit();
+
+    res.json({ success: true, message: 'Leave Marked Successfully' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: 'Error marking leave: ' + err.message });
+  } finally {
+    conn.release();
+  }
+};
+
+// DELETE /api/leave-allocation/holidays/:id  { hdate } in body
+exports.deleteHoliday = async (req, res) => {
+  const conn = await db.getConnection();
+  try {
+    const { id } = req.params;
+    const { hdate } = req.body;
+
+    await conn.beginTransaction();
+    const [result] = await conn.query(`DELETE FROM holidays WHERE id = ?`, [id]);
+
+    if (result.affectedRows > 0 && hdate) {
+      // Revert attendance rows on that date back to Absent, same as PHP does
+      await conn.query(
+        `UPDATE attendance SET status = 'Absent', remarks = 'Holiday Assigned Deleted' WHERE date = ?`,
+        [hdate]
+      );
+    }
+    await conn.commit();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Deletion Failed - Record Not Found' });
+    }
+    res.json({ success: true, message: 'Holiday Deleted Successfully' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: 'Error occurred while processing your request: ' + err.message });
+  } finally {
+    conn.release();
   }
 };
