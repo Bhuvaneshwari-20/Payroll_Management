@@ -1,6 +1,3 @@
-// components/EmployeeProfileCard.jsx
-// Port of the employee "Employee Information" card (department/role/
-// manager/employee id) shown for Employee & Manager roles.
 
 import { useEffect, useState } from 'react';
 import { fetchMyProfile } from '../services/dashboardService';

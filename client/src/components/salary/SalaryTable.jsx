@@ -17,7 +17,7 @@ export default function SalaryTable({ data, holdStatusMap }) {
             <th colSpan="10">Deductions</th>
             <th rowSpan="2">Net</th><th rowSpan="2">OT Mins</th><th rowSpan="2">OT Amt</th>
             <th rowSpan="2">HW Days</th><th rowSpan="2">HW Amt</th><th rowSpan="2">Emp PF</th>
-            <th rowSpan="2" style={{ background: '#fff8e1', minWidth: 120 }}>Payment Mode</th>
+            <th rowSpan="2" style={{ background: 'rgba(255, 193, 7, 0.15)', minWidth: 120 }}>Payment Mode</th>
           </tr>
           <tr>
             <th>Fixed</th><th>Earned</th><th>Fixed</th><th>Earned</th><th>Fixed</th><th>Earned</th>
@@ -32,7 +32,7 @@ export default function SalaryTable({ data, holdStatusMap }) {
             const mode = holdStatusMap[row.employee_id] || 'neft';
             const isHold = mode === 'cash';
             return (
-              <tr key={row.employee_id} style={{ background: isHold ? '#fff5f5' : '#fff' }}>
+              <tr key={row.employee_id} style={{ background: isHold ? 'rgba(239, 68, 68, 0.08)' : 'transparent' }}>
                 <td className="text-center">{i + 1}</td>
                 <td>{row.employee_id}</td>
                 <td>{row.name}</td>

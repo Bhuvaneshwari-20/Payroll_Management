@@ -11,6 +11,123 @@ const today = new Date();
 const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
 const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 
+// Same pattern as ManagerLeaveManagement.jsx / LeaveManagement.jsx / Departments.jsx /
+// Roles.jsx / EmployeeManagement.jsx: Bootstrap's .nav-tabs/.card/.table/.form-control/
+// .dropdown-menu and the ad-hoc `bg-light`/`bg-white` panels don't know about the
+// --vb-* theme variables (defined once in Topbar.jsx), so without this override block
+// they stay hardcoded light and show up as jarring white panels with near-invisible
+// labels on a dark page — which is exactly what's happening in the screenshot
+// (the "From Date" / "To Date" labels and stat boxes are dark text on dark bg).
+const salary_report_styles = `
+  .kr-page-container .nav-tabs {
+    border-bottom: 1px solid var(--vb-border, #dee2e6);
+  }
+  .kr-page-container .nav-tabs .nav-link {
+    color: var(--vb-text-muted, #495057);
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+  }
+  .kr-page-container .nav-tabs .nav-link:hover {
+    color: var(--vb-text, #1e293b);
+    border-color: transparent;
+  }
+  .kr-page-container .nav-tabs .nav-link.active {
+    color: var(--vb-text, #1e293b);
+    background: transparent;
+    border-bottom: 2px solid #a4133c;
+  }
+
+  .kr-page-container .bg-light {
+    background: var(--vb-bg-surface-2, #f8f9fc) !important;
+  }
+  .kr-page-container .bg-white {
+    background: var(--vb-bg-surface, #fff) !important;
+  }
+  .kr-page-container .shadow-sm {
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06)) !important;
+  }
+
+  .kr-page-container .form-label { color: var(--vb-text, #1e293b); }
+  .kr-page-container .form-select,
+  .kr-page-container .form-control {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #ced4da);
+  }
+  .kr-page-container .form-control::-webkit-calendar-picker-indicator {
+    filter: var(--vb-icon-invert, none);
+  }
+
+  .kr-page-container .card {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: none;
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+  }
+
+  .kr-page-container h1,
+  .kr-page-container h5,
+  .kr-page-container h6 { color: var(--vb-text, #1e293b); }
+
+  .kr-page-container .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+
+  .kr-page-container .border,
+  .kr-page-container .border.rounded {
+    border-color: var(--vb-border, #dee2e6) !important;
+    color: var(--vb-text, #1e293b);
+  }
+
+  .kr-page-container .table {
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table.table-bordered {
+    border-color: var(--vb-border, #dee2e6);
+  }
+  .kr-page-container .table thead th {
+    color: var(--vb-text-muted, #495057);
+    border-color: var(--vb-border, #dee2e6);
+    font-weight: 600;
+  }
+  .kr-page-container .table td,
+  .kr-page-container .table th {
+    border-color: var(--vb-border, #dee2e6);
+    vertical-align: middle;
+  }
+  .kr-page-container .table > :not(caption) > * > * {
+    background-color: transparent;
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table-hover > tbody > tr:hover > * {
+    background-color: var(--vb-bg-surface-2, #f8f9fc);
+  }
+
+  .kr-page-container .dropdown-menu {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #dee2e6);
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.12));
+  }
+  .kr-page-container .dropdown-item {
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .dropdown-item:hover,
+  .kr-page-container .dropdown-item:focus {
+    background: var(--vb-bg-surface-2, #f8f9fc);
+    color: var(--vb-text, #1e293b);
+  }
+
+  .kr-page-container .history-item {
+    background: var(--vb-bg-surface, #fff);
+    border-color: var(--vb-border, #dee2e6) !important;
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .history-item.active {
+    background: var(--vb-bg-surface-2, #e7f1ff) !important;
+    border-color: #0d6efd !important;
+  }
+`;
+
 export default function SalaryReport() {
     const [tab, setTab] = useState('generate');
     const [fromDate, setFromDate] = useState(firstDay);
@@ -111,7 +228,9 @@ export default function SalaryReport() {
     } : null;
 
     return (
-        <div>
+        <div className="kr-page-container">
+            <style>{salary_report_styles}</style>
+
             <h1 className="mb-1">Salary Report</h1>
             <p className="text-muted mb-4">Generate and manage salary reports</p>
 
@@ -236,8 +355,8 @@ export default function SalaryReport() {
                                     <div
                                         key={item.id}
                                         onClick={() => viewHistoryReport(item.id)}
-                                        className="p-3 border rounded mb-2"
-                                        style={{ cursor: 'pointer', background: selectedHistory === item.id ? '#e7f1ff' : '#fff', borderColor: selectedHistory === item.id ? '#0d6efd' : '#dee2e6' }}
+                                        className={`history-item p-3 border rounded mb-2 ${selectedHistory === item.id ? 'active' : ''}`}
+                                        style={{ cursor: 'pointer' }}
                                     >
                                         <h6 className="mb-1"><i className="fas fa-file-alt me-2"></i>{item.report_name}</h6>
                                         <small className="text-muted">

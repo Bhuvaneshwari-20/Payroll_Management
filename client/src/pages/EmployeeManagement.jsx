@@ -7,9 +7,242 @@ import StatusHistoryTab from '../components/employee/StatusHistoryTab';
 import StatusChangeHistoryTab from '../components/employee/StatusChangeHistoryTab';
 import BulkUploadTab from '../components/employee/BulkUploadTab';
 import UploadHistoryTab from '../components/employee/UploadHistoryTab';
-import './EmployeeManagement.css';
 import defaultProfile from "../assets/images/default-profile.png";
 import DataTable from '../components/common/DataTable';
+
+// ---------------------------------------------------------------------------
+// Styles were previously in a separate EmployeeManagement.css with hardcoded
+// light-mode colors (white step circles, #fff inputs, #f8fafc panels, etc.),
+// so the stepper/form/modal all stayed light even in dark mode and text lost
+// contrast. Merged here as an embedded, theme-aware style string (same
+// pattern as Departments.jsx/Roles.jsx), using the --vb-* variables defined
+// in Topbar.jsx. EmployeeModal.jsx uses these same class names but is only
+// ever rendered while this component is mounted, so one shared style block
+// here covers both.
+// ---------------------------------------------------------------------------
+const emp_management_styles = `
+  /* ===== STEPPER ===== */
+  .emp-stepper-wrap {
+    background: var(--vb-bg-surface-2, #f8fafc);
+    border-bottom: 1px solid var(--vb-border, #e5e7eb);
+    padding: 24px 40px 20px;
+  }
+  .emp-stepper-track { display: flex; align-items: flex-start; position: relative; }
+  .emp-stepper-line {
+    position: absolute; top: 20px; left: 10%; right: 10%; height: 3px;
+    background: var(--vb-border, #e5e7eb); border-radius: 99px; z-index: 0;
+  }
+  .emp-stepper-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #2563eb, #3b82f6);
+    border-radius: 99px; transition: width 0.4s ease;
+  }
+  .emp-step-item { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1; }
+  .emp-step-circle {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--vb-bg-surface, #fff);
+    border: 3px solid var(--vb-border, #d1d5db);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.9rem; color: var(--vb-text-muted, #9ca3af); font-weight: 700;
+    transition: all 0.3s; box-shadow: 0 2px 8px var(--vb-shadow, rgba(0,0,0,0.07));
+  }
+  .emp-step-item.active .emp-step-circle {
+    background: #2563eb; border-color: #2563eb; color: #fff;
+    box-shadow: 0 4px 14px rgba(37,99,235,0.4); transform: scale(1.1);
+  }
+  .emp-step-item.completed .emp-step-circle { background: #10b981; border-color: #10b981; color: #fff; }
+  .emp-step-item.completed .emp-step-circle i { display: none; }
+  .emp-step-item.completed .emp-step-circle::before {
+    content: '\\f00c'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
+  }
+  .emp-step-label {
+    font-size: 0.72rem; font-weight: 600; color: var(--vb-text-muted, #9ca3af);
+    margin-top: 8px; text-align: center; text-transform: uppercase; letter-spacing: 0.04em;
+    transition: color 0.3s;
+  }
+  .emp-step-item.active .emp-step-label { color: #2563eb; }
+  .emp-step-item.completed .emp-step-label { color: #10b981; }
+
+  /* ===== FORM FIELDS ===== */
+  .emp-section-title {
+    font-size: 1rem; font-weight: 700; color: var(--vb-text, #1e40af);
+    margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid var(--vb-border, #dbeafe);
+  }
+  .emp-sub-label { font-size: 0.85rem; font-weight: 700; color: var(--vb-text, #374151); text-transform: uppercase; letter-spacing: 0.05em; }
+  .emp-label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--vb-text, #374151); margin-bottom: 5px; }
+  .emp-input {
+    width: 100%; padding: 9px 12px; font-size: 0.875rem;
+    border: 1.5px solid var(--vb-border, #e5e7eb); border-radius: 8px; outline: none;
+    background: var(--vb-bg-surface-2, #fff); color: var(--vb-text, #111827);
+    font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .emp-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+  .emp-input.is-invalid { border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239,68,68,0.1) !important; }
+  .emp-input.is-valid { border-color: #10b981 !important; }
+  .emp-err { font-size: 0.75rem; color: #ef4444; margin-top: 4px; min-height: 16px; }
+
+  /* Avatar */
+  .emp-avatar-wrap { position: relative; display: inline-block; }
+  .emp-avatar-img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid var(--vb-border, #dbeafe); }
+  .emp-avatar-btn {
+    position: absolute; bottom: 0; right: 0;
+    background: #2563eb; color: #fff; width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 0.7rem;
+    cursor: pointer; box-shadow: 0 2px 6px rgba(37,99,235,0.4);
+  }
+
+  .emp-divider-label {
+    font-size: 0.8rem; font-weight: 700; color: var(--vb-text, #1e40af);
+    background: var(--vb-bg-surface-2, #eff6ff);
+    padding: 8px 14px; border-radius: 8px; border-left: 3px solid #2563eb;
+  }
+
+  .emp-currency-wrap { position: relative; }
+  .emp-currency-sym {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    color: var(--vb-text-muted, #6b7280); font-size: 0.85rem; font-weight: 600; pointer-events: none;
+  }
+  .emp-currency-input { padding-left: 26px !important; }
+
+  .emp-eye-toggle {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    color: var(--vb-text-muted, #9ca3af); cursor: pointer; font-size: 0.85rem; z-index: 2;
+  }
+
+  .emp-toggle { position: relative; display: inline-flex; width: 46px; height: 24px; flex-shrink: 0; cursor: pointer; }
+  .emp-toggle input { display: none; }
+  .emp-toggle-slider { position: absolute; inset: 0; background: var(--vb-border, #d1d5db); border-radius: 99px; transition: background 0.3s; }
+  .emp-toggle-slider::before {
+    content: ''; position: absolute; width: 18px; height: 18px; background: #fff; border-radius: 50%;
+    top: 3px; left: 3px; transition: transform 0.3s; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .emp-toggle input:checked + .emp-toggle-slider { background: #10b981; }
+  .emp-toggle input:checked + .emp-toggle-slider::before { transform: translateX(22px); }
+
+  .emp-toggle-card { border: 1.5px solid var(--vb-border, #e5e7eb); border-radius: 10px; padding: 14px 16px; background: var(--vb-bg-surface-2, #fafafa); }
+
+  .emp-btn-primary { background: #2563eb; color: #fff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.875rem; }
+  .emp-btn-primary:hover { background: #1d4ed8; color: #fff; }
+  .emp-btn-outline { background: var(--vb-bg-surface, #fff); color: #2563eb; border: 1.5px solid #2563eb; border-radius: 8px; font-weight: 600; font-size: 0.875rem; }
+  .emp-btn-outline:hover { background: var(--vb-bg-surface-2, #eff6ff); }
+  .emp-btn-success { background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.875rem; }
+  .emp-btn-success:hover { background: #059669; color: #fff; }
+
+  .upload-area {
+    border: 2px dashed #4158d0; border-radius: 10px; padding: 30px; text-align: center;
+    cursor: pointer; transition: all 0.3s; min-height: 200px;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    color: var(--vb-text, inherit);
+  }
+  .upload-area:hover { background-color: var(--vb-bg-surface-2, #f8f9fa); }
+  .upload-area.dragover { background-color: var(--vb-bg-surface-2, #e3f2fd); border-color: #2196f3; }
+
+  /* ===== CUSTOM MODAL (replaces bootstrap JS modal control) ===== */
+  .emp-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: flex; align-items: flex-start; justify-content: center;
+    z-index: 1050; overflow-y: auto; padding: 30px 15px;
+  }
+  .emp-modal-dialog { width: 100%; max-width: 1100px; margin: auto; }
+  .emp-modal-content {
+    border-radius: 16px; border: none; overflow: hidden;
+    background: var(--vb-bg-surface, #fff); color: var(--vb-text, #1e293b);
+  }
+  .emp-modal-header {
+    background-color: rgb(145, 23, 68);
+    padding: 20px 28px; border: none;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .emp-modal-footer {
+    border-top: 1px solid var(--vb-border, #e5e7eb);
+    padding: 16px 28px; display: flex; justify-content: flex-end; gap: 10px;
+  }
+  .emp-modal-content .modal-header,
+  .emp-modal-content .modal-title { color: var(--vb-text, #1e293b); }
+
+  /* Master Data dropdown (Bootstrap defaults) + misc muted text, kept theme-aware */
+  .kr-page-container .dropdown-menu {
+    background: var(--vb-bg-surface, #fff);
+    border-color: var(--vb-border, #e6e8ec);
+    box-shadow: 0 14px 34px var(--vb-shadow, rgba(0,0,0,0.1));
+  }
+  .kr-page-container .dropdown-item {
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .dropdown-item:hover,
+  .kr-page-container .dropdown-item:focus {
+    background: var(--vb-bg-surface-2, #f8f9fc);
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+
+  /* ===== Card / table (same dark-mode treatment as Departments & Roles) ===== */
+  .kr-page-container .card,
+  .kr-page-container .kr-card {
+    border: none;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+    background: var(--vb-bg-surface, #fff);
+    transition: background 0.3s ease;
+  }
+  .kr-page-container .card-header {
+    background: linear-gradient(90deg, var(--vb-bg-surface-2, #fdf2f4), var(--vb-bg-surface, #ffffff));
+    border-bottom: 1px solid var(--vb-border, #f1f1f1);
+    border-radius: 14px 14px 0 0 !important;
+    font-weight: 600;
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .card-body,
+  .kr-page-container .kr-card-body {
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table {
+    color: var(--vb-text, #1e293b);
+    margin-bottom: 0;
+  }
+  .kr-page-container .table thead th {
+    color: var(--vb-text-muted, #64748b);
+    border-bottom: 2px solid var(--vb-border, #e6e8ec);
+    font-weight: 600;
+  }
+  .kr-page-container .table td {
+    border-color: var(--vb-border, #e6e8ec);
+    vertical-align: middle;
+  }
+  .kr-page-container .table > :not(caption) > * > * {
+    background-color: transparent;
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table-hover > tbody > tr:hover > * {
+    background-color: var(--vb-bg-surface-2, #f8f9fc);
+  }
+
+  /* Form controls used in the filter row (Department/Role/Status selects) */
+  .kr-page-container .form-label { color: var(--vb-text, #1e293b); }
+  .kr-page-container .form-control,
+  .kr-page-container .form-select {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #ced4da);
+  }
+  .kr-page-container .form-control:focus,
+  .kr-page-container .form-select:focus {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+  }
+
+  /* Nav tabs (Employees / Managers / Bulk Upload / ...) */
+  .kr-page-container .kr-tabs .nav-link {
+    color: var(--vb-text-muted, #64748b);
+    border: none;
+    border-bottom: 2px solid transparent;
+  }
+  .kr-page-container .kr-tabs .nav-link.active {
+    color: var(--vb-text, #1e293b);
+    background: transparent;
+    border-bottom: 2px solid #a4133c;
+  }
+`;
 
 const TABS = [
     { key: 'employees', label: 'Employees', icon: 'fa-users' },
@@ -206,12 +439,13 @@ export default function EmployeeManagement() {
     return (
         <div className="p-4" id="kr-content">
             <div className="kr-page-container">
-                <nav aria-label="breadcrumb" className="kr-breadcrumb">
+                <style>{emp_management_styles}</style>
+                {/* <nav aria-label="breadcrumb" className="kr-breadcrumb">
                     <ol className="breadcrumb">
                         <li className="breadcrumb-item"><a href="/dashboard"><i className="fas fa-home"></i></a></li>
                         <li className="breadcrumb-item active">Employee Management</li>
                     </ol>
-                </nav>
+                </nav> */}
 
                 <div className="kr-page-header">
                     <div className="d-flex justify-content-between align-items-center">

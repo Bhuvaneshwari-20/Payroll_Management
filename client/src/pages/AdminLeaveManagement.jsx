@@ -5,6 +5,106 @@ import { getAllForHR, getHRStats, hrAction } from '../services/leaveApi';
 import { getAllPermissionsForAdmin, permissionHrAction, getPermissionHRStats } from '../services/permissionApi';
 import LeaveStatusBadge from '../components/leave/LeaveStatusBadge';
 
+// ---------------------------------------------------------------------------
+// Vertex Bank — Admin Leave Management ("Request Management")
+// The stat cards used Bootstrap's bg-{color} bg-opacity-10 utilities with no
+// explicit text color, which blends into the dark page background and makes
+// the numbers/labels nearly unreadable in dark mode. Replaced with explicit
+// tinted cards (readable in both themes) plus the same card/table/tabs
+// dark-mode treatment used on Departments.jsx / Roles.jsx /
+// EmployeeManagement.jsx / LeaveManagement.jsx, using the --vb-* variables
+// defined in Topbar.jsx.
+// ---------------------------------------------------------------------------
+const admin_leave_styles = `
+  .kr-page-container .stat-tile {
+    border: none;
+    border-radius: 14px;
+    padding: 1rem 1.1rem;
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+  }
+  .kr-page-container .stat-tile small {
+    color: var(--vb-text-muted, #64748b);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 0.72rem;
+  }
+  .kr-page-container .stat-tile h3 {
+    color: var(--vb-text, #1e293b);
+    font-weight: 700;
+    margin-top: 0.15rem;
+    margin-bottom: 0;
+  }
+  .kr-page-container .stat-tile-primary { background: rgba(37, 99, 235, 0.15); }
+  .kr-page-container .stat-tile-primary i { color: #3b82f6; }
+  .kr-page-container .stat-tile-warning { background: rgba(217, 119, 6, 0.15); }
+  .kr-page-container .stat-tile-warning i { color: #f59e0b; }
+  .kr-page-container .stat-tile-success { background: rgba(16, 185, 129, 0.15); }
+  .kr-page-container .stat-tile-success i { color: #10b981; }
+  .kr-page-container .stat-tile-danger { background: rgba(220, 38, 38, 0.15); }
+  .kr-page-container .stat-tile-danger i { color: #ef4444; }
+
+  .kr-page-container .card {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: none;
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+  }
+  .kr-page-container .card-header {
+    background: linear-gradient(90deg, var(--vb-bg-surface-2, #fdf2f4), var(--vb-bg-surface, #ffffff));
+    border-bottom: 1px solid var(--vb-border, #f1f1f1);
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .card-header h5 { color: var(--vb-text, #1e293b); }
+
+  .kr-page-container .nav-tabs {
+    border-bottom: 1px solid var(--vb-border, #dee2e6);
+  }
+  .kr-page-container .nav-tabs .nav-link {
+    color: var(--vb-text-muted, #495057);
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+  }
+  .kr-page-container .nav-tabs .nav-link:hover {
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .nav-tabs .nav-link.active {
+    color: var(--vb-text, #1e293b);
+    background: transparent;
+    border-bottom: 2px solid #a4133c;
+  }
+
+  .kr-page-container .form-select,
+  .kr-page-container .form-control {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #ced4da);
+  }
+
+  .kr-page-container .table {
+    color: var(--vb-text, #1e293b);
+    margin-bottom: 0;
+  }
+  .kr-page-container .table thead th {
+    color: var(--vb-text-muted, #64748b);
+    border-bottom: 2px solid var(--vb-border, #e6e8ec);
+    font-weight: 600;
+  }
+  .kr-page-container .table td {
+    border-color: var(--vb-border, #e6e8ec);
+    vertical-align: middle;
+  }
+  .kr-page-container .table > :not(caption) > * > * {
+    background-color: transparent;
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table-hover > tbody > tr:hover > * {
+    background-color: var(--vb-bg-surface-2, #f8f9fc);
+  }
+  .kr-page-container .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+`;
+
 export default function AdminLeaveManagement() {
   const { user } = useAuth();
   const [tab, setTab] = useState('leave'); // 'leave' | 'permission' | 'special'
@@ -78,37 +178,39 @@ const loadStats = useCallback(() => {
   };
 
   return (
-    <div>
+    <div className="kr-page-container">
+      <style>{admin_leave_styles}</style>
+
       <div className="row mb-4 g-3">
         <div className="col-md-3">
-          <div className="card p-3 bg-primary bg-opacity-10">
+          <div className="stat-tile stat-tile-primary">
             <div className="d-flex justify-content-between">
               <div><small>Total Requests</small><h3>{stats.total}</h3></div>
-              <i className="fas fa-clipboard-list fs-2 text-primary"></i>
+              <i className="fas fa-clipboard-list fs-2"></i>
             </div>
           </div>
         </div>
         <div className="col-md-3">
-          <div className="card p-3 bg-warning bg-opacity-10">
+          <div className="stat-tile stat-tile-warning">
             <div className="d-flex justify-content-between">
               <div><small>Pending</small><h3>{stats.pending}</h3></div>
-              <i className="fas fa-clock fs-2 text-warning"></i>
+              <i className="fas fa-clock fs-2"></i>
             </div>
           </div>
         </div>
         <div className="col-md-3">
-          <div className="card p-3 bg-success bg-opacity-10">
+          <div className="stat-tile stat-tile-success">
             <div className="d-flex justify-content-between">
               <div><small>Approved Today</small><h3>{stats.approved_today}</h3></div>
-              <i className="fas fa-check-circle fs-2 text-success"></i>
+              <i className="fas fa-check-circle fs-2"></i>
             </div>
           </div>
         </div>
         <div className="col-md-3">
-          <div className="card p-3 bg-danger bg-opacity-10">
+          <div className="stat-tile stat-tile-danger">
             <div className="d-flex justify-content-between">
               <div><small>Rejected</small><h3>{stats.rejected}</h3></div>
-              <i className="fas fa-times-circle fs-2 text-danger"></i>
+              <i className="fas fa-times-circle fs-2"></i>
             </div>
           </div>
         </div>

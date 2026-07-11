@@ -15,6 +15,38 @@ function monthLabel(payslipMonth, fromDate) {
   };
 }
 
+// Same pattern as SalaryReport.jsx / LeaveAllocation.jsx / ManagerLeaveManagement.jsx:
+// Bootstrap's .card/.card-footer.bg-white/.modal-content don't know about the
+// --vb-* theme variables (defined once in Topbar.jsx), so without this override
+// block the payslip cards and the preview modal stay hardcoded white on a dark page.
+const my_payslips_styles = `
+  .kr-page-container .card {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: none;
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+  }
+  .kr-page-container .card-footer.bg-white {
+    background: var(--vb-bg-surface, #fff) !important;
+    border-top: 1px solid var(--vb-border, #dee2e6);
+  }
+  .kr-page-container .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+
+  .kr-page-container .modal-content {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: none;
+  }
+  .kr-page-container .modal-header.custom-modal-header {
+    background: var(--vb-bg-surface-2, #f8f9fc);
+    color: var(--vb-text, #1e293b);
+    border-bottom: 1px solid var(--vb-border, #dee2e6);
+  }
+  .kr-page-container .modal-footer {
+    border-top: 1px solid var(--vb-border, #dee2e6);
+  }
+`;
+
 export default function MyPayslips() {
   const [payslips, setPayslips] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -108,7 +140,9 @@ export default function MyPayslips() {
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 kr-page-container">
+      <style>{my_payslips_styles}</style>
+
       <nav aria-label="breadcrumb" className="kr-breadcrumb">
         <ol className="breadcrumb">
           <li className="breadcrumb-item"><a href="#"><i className="fas fa-home"></i></a></li>

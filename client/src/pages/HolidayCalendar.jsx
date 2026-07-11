@@ -8,7 +8,6 @@ import {
   assignDateLeave,
   deleteHoliday,
 } from '../services/leaveAllocationApi';
-import './HolidayCalendar.css';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const FULL_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -16,6 +15,134 @@ const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
+
+// Everything that used to live in HolidayCalendar.css, now inlined so there's
+// one file to maintain (this component is only ever rendered inside
+// LeaveAllocation.jsx's .kr-page-container, which already themes .ha-btn-toggle
+// and .card for us). The original rules hardcoded light-mode colors
+// (background: white, border: #eee, etc.) which is why the calendar grid and
+// the day cells stayed a flat white/grey panel on the dark theme in the
+// screenshot. Backgrounds/borders/text that should follow the theme now read
+// from the --vb-* variables; the header gradient and the orange "holiday" tile
+// are left as intentional brand accents.
+const holiday_calendar_styles = `
+  .ha-calendar-container {
+    background: var(--vb-bg-surface, #fff);
+    border-radius: 15px;
+    box-shadow: 0 4px 6px var(--vb-shadow, rgba(0, 0, 0, 0.1));
+    padding: 20px;
+    margin: 20px 0;
+  }
+
+  .ha-calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    padding: 10px;
+    border-radius: 8px;
+    color: white;
+    margin-bottom: 15px;
+  }
+
+  .ha-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+  }
+
+  .ha-calendar-day {
+    padding: 8px;
+    text-align: center;
+    border-radius: 6px;
+    border: 1px solid var(--vb-border, #eee);
+    color: var(--vb-text, #1e293b);
+    cursor: pointer;
+    min-height: 44px;
+  }
+
+  .ha-calendar-day:hover {
+    background: var(--vb-bg-surface-2, #f0f4f8);
+  }
+
+  .ha-calendar-day.empty {
+    cursor: default;
+  }
+  .ha-calendar-day.empty:hover {
+    background: transparent;
+  }
+
+  .ha-day-header {
+    font-weight: bold;
+    background: var(--vb-bg-surface-2, #f8f9fa);
+    color: var(--vb-text, #1e293b);
+    cursor: default;
+  }
+  .ha-day-header:hover {
+    background: var(--vb-bg-surface-2, #f8f9fa);
+  }
+
+  .ha-holiday {
+    background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+    color: white;
+  }
+  .ha-holiday:hover {
+    background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+  }
+
+  .ha-holiday-text {
+    font-size: 0.65rem;
+    display: block;
+  }
+
+  .ha-btn-toggle {
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+  }
+  .ha-btn-toggle.active {
+    background-color: #4CAF50;
+    color: white;
+  }
+  .ha-btn-toggle.inactive {
+    background-color: var(--vb-bg-surface-2, #e9ecef);
+    color: var(--vb-text, #1e293b);
+  }
+
+  .ha-btn-custom {
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    transition: transform 0.15s;
+  }
+  .ha-btn-custom:hover {
+    transform: translateY(-1px);
+  }
+  .ha-btn-custom-success {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  }
+  .ha-btn-custom-primary {
+    background: linear-gradient(135deg, #007bff 0%, #6610f2 100%);
+  }
+
+  .ha-calendar-container .card {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: none;
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+  }
+
+  @media (max-width: 768px) {
+    .ha-calendar-container {
+      padding: 10px;
+    }
+    .ha-calendar-day {
+      padding: 4px;
+      font-size: 0.8rem;
+    }
+  }
+`;
 
 function toISODate(d) {
   const y = d.getFullYear();
@@ -231,6 +358,8 @@ export default function HolidayCalendar() {
 
   return (
     <div>
+      <style>{holiday_calendar_styles}</style>
+
       <div className="d-flex gap-2 mb-3">
         <button className="ha-btn-custom ha-btn-custom-success" onClick={handleAssignSundays}>
           <i className="fas fa-calendar-check me-1"></i> Assign All Sundays

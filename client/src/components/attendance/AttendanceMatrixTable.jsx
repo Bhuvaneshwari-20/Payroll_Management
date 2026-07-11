@@ -213,8 +213,17 @@ export default function AttendanceMatrixTable({ data, month, year }) {
             <tbody>
               {pageRows.map((r) => (
                 <tr key={r.employee_code}>
-                  <td style={{ position: 'sticky', left: 0, zIndex: 1, background: '#fff', fontWeight: 500 }}>{r.employee_code}</td>
-                  <td style={{ position: 'sticky', left: 100, zIndex: 1, background: '#fff' }}>{r.name}</td>
+                  {/*
+                    FIX: these two sticky cells were hardcoded to
+                    background: '#fff', which — being an inline style —
+                    cannot be overridden by any CSS class, including the
+                    page-level --vb-* theme overrides. On a dark page this
+                    left two permanently-white columns with black text no
+                    matter what theme was active. Swapped to the CSS
+                    variable itself so it now follows light/dark mode.
+                  */}
+                  <td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--vb-bg-surface, #fff)', color: 'var(--vb-text, #1e293b)', fontWeight: 500 }}>{r.employee_code}</td>
+                  <td style={{ position: 'sticky', left: 100, zIndex: 1, background: 'var(--vb-bg-surface, #fff)', color: 'var(--vb-text, #1e293b)' }}>{r.name}</td>
                   <td>{r.joining_date ? new Date(r.joining_date).toLocaleDateString('en-GB') : '-'}</td>
                   <td>{r.department || '-'}</td>
                   {dayCols.map((d) => {

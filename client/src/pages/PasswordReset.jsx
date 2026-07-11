@@ -2,6 +2,54 @@ import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { getEmployeePasswords, resetEmployeePassword } from '../services/passwordApi';
 
+// Same pattern as SalaryReport.jsx / LeaveAllocation.jsx / MyPayslips.jsx:
+// Bootstrap's .card/.card-header.bg-white/.form-control/.table(-dark)/.table-striped
+// don't know about the --vb-* theme variables (defined once in Topbar.jsx), so
+// without this override block the card and table stay hardcoded white/light on
+// a dark page.
+const password_reset_styles = `
+  .kr-page-container .card {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: none;
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+  }
+  .kr-page-container .card-header.bg-white {
+    background: var(--vb-bg-surface, #fff) !important;
+    color: var(--vb-text, #1e293b);
+    border-bottom: 1px solid var(--vb-border, #dee2e6);
+  }
+
+  .kr-page-container .form-control {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #ced4da);
+  }
+
+  .kr-page-container .table {
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table td,
+  .kr-page-container .table th {
+    border-color: var(--vb-border, #dee2e6);
+    vertical-align: middle;
+  }
+  .kr-page-container .table > :not(caption) > * > * {
+    background-color: transparent;
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: var(--vb-bg-surface-2, #f8f9fc);
+  }
+  .kr-page-container .table-hover > tbody > tr:hover > * {
+    background-color: var(--vb-bg-surface-2, #f0f2f8);
+  }
+  /* thead is Bootstrap's table-dark utility, which is intentionally always
+     dark-on-light regardless of theme, so it's left untouched. */
+
+  .kr-page-container .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+`;
+
 export default function PasswordReset() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +135,9 @@ export default function PasswordReset() {
   });
 
   return (
-    <div className="p-4" id="kr-content">
+    <div className="p-4 kr-page-container" id="kr-content">
+      <style>{password_reset_styles}</style>
+
       <div className="kr-page-container">
         <nav aria-label="breadcrumb" className="kr-breadcrumb">
           <ol className="breadcrumb">

@@ -2,6 +2,84 @@ import { useState, useEffect, useCallback } from 'react';
 import attendanceService, { STATUS_OPTIONS } from '../services/attendanceService';
 import AttendanceMatrixTable from '../components/attendance/AttendanceMatrixTable';
 
+// Same pattern as LeaveManagement.jsx / Departments.jsx / Roles.jsx /
+// EmployeeManagement.jsx: Bootstrap's .card/.table/.nav-tabs/.form-control
+// don't know about the --vb-* theme variables (defined once in
+// Topbar.jsx), so without this override block they stay hardcoded light
+// and show up as white panels on a dark page.
+const attendance_styles = `
+  .kr-page .nav-tabs {
+    border-bottom: 1px solid var(--vb-border, #dee2e6);
+  }
+  .kr-page .nav-tabs .nav-link {
+    color: var(--vb-text-muted, #495057);
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+  }
+  .kr-page .nav-tabs .nav-link:hover {
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page .nav-tabs .nav-link.active {
+    color: var(--vb-text, #1e293b);
+    background: transparent;
+    border-bottom: 2px solid #a4133c;
+  }
+
+  .kr-page .form-select,
+  .kr-page .form-control {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #ced4da);
+  }
+  .kr-page .form-select:focus,
+  .kr-page .form-control:focus {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page .form-label { color: var(--vb-text, #1e293b); }
+
+  .kr-page .card {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: none;
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+  }
+
+  .kr-page .table {
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page .table.table-bordered {
+    border-color: var(--vb-border, #dee2e6);
+  }
+  .kr-page .table thead th,
+  .kr-page .table thead.table-light th {
+    background: var(--vb-bg-surface-2, #f8f9fc);
+    color: var(--vb-text-muted, #495057);
+    border-color: var(--vb-border, #dee2e6);
+    font-weight: 600;
+  }
+  .kr-page .table td,
+  .kr-page .table th {
+    border-color: var(--vb-border, #dee2e6);
+    vertical-align: middle;
+  }
+  .kr-page .table > :not(caption) > * > * {
+    background-color: transparent;
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page .table-hover > tbody > tr:hover > * {
+    background-color: var(--vb-bg-surface-2, #f8f9fc);
+  }
+
+  .kr-page .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+
+  .kr-page .page-heading {
+    color: var(--vb-text, #1e293b);
+    font-weight: 700;
+  }
+`;
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -320,7 +398,7 @@ function AttendanceMatrixSection({ month, year, setMonth, setYear, data, loading
   return (
     <div className="mt-4">
       <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-        <h5 className="mb-0">
+        <h5 className="mb-0 page-heading">
           <i className="fas fa-table me-2 text-primary" />
           Attendance Matrix — {month}/{year}
         </h5>
@@ -412,7 +490,9 @@ export default function Attendance() {
 
   return (
     <div className="kr-page">
-      <h3 className="mb-4">
+      <style>{attendance_styles}</style>
+
+      <h3 className="mb-4 page-heading">
         <i className="fas fa-calendar-check me-2" />
         Attendance
       </h3>

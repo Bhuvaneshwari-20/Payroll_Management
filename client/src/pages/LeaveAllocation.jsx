@@ -2,7 +2,84 @@ import { useState, useEffect, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import { getBalances, assignAll, assignSpecific, resetAll } from '../services/leaveAllocationApi';
 import HolidayCalendar from './HolidayCalendar';
-import './HolidayCalendar.css';
+
+// Same pattern as SalaryReport.jsx / ManagerLeaveManagement.jsx / Departments.jsx /
+// Roles.jsx: Bootstrap's .card/.form-control/.form-select/.table and the
+// `ha-btn-toggle` tab buttons don't know about the --vb-* theme variables
+// (defined once in Topbar.jsx), so without this override block they stay
+// hardcoded light and show up as a jarring white panel on a dark page.
+const leave_allocation_styles = `
+  .kr-page-container .ha-btn-toggle {
+    padding: 0.55rem 1.1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13.5px;
+    border: 1px solid var(--vb-border, #dee2e6);
+    background: var(--vb-bg-surface-2, #f8f9fc);
+    color: var(--vb-text-muted, #495057);
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .kr-page-container .ha-btn-toggle:hover {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .ha-btn-toggle.active {
+    background: #a4133c;
+    border-color: #a4133c;
+    color: #fff;
+  }
+
+  .kr-page-container .card {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: none;
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+  }
+  .kr-page-container .card-header {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border-bottom: 1px solid var(--vb-border, #dee2e6);
+  }
+
+  .kr-page-container .form-label { color: var(--vb-text, #1e293b); }
+  .kr-page-container .form-select,
+  .kr-page-container .form-control {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #ced4da);
+  }
+  .kr-page-container .form-select:focus,
+  .kr-page-container .form-control:focus {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+  }
+
+  .kr-page-container .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+
+  .kr-page-container .table {
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table thead th {
+    color: var(--vb-text-muted, #495057);
+    border-color: var(--vb-border, #dee2e6);
+    font-weight: 600;
+  }
+  .kr-page-container .table td,
+  .kr-page-container .table th {
+    border-color: var(--vb-border, #dee2e6);
+    vertical-align: middle;
+  }
+  .kr-page-container .table > :not(caption) > * > * {
+    background-color: transparent;
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: var(--vb-bg-surface-2, #f8f9fc);
+  }
+  .kr-page-container .table-hover > tbody > tr:hover > * {
+    background-color: var(--vb-bg-surface-2, #f0f2f8);
+  }
+`;
 
 export default function LeaveAllocation() {
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'specific' | 'holiday'
@@ -73,7 +150,9 @@ export default function LeaveAllocation() {
   };
 
   return (
-    <div>
+    <div className="kr-page-container">
+      <style>{leave_allocation_styles}</style>
+
       <div className="d-flex justify-content-center mb-4 flex-wrap gap-2">
         <button
           className={`ha-btn-toggle ${activeTab === 'all' ? 'active' : 'inactive'}`}

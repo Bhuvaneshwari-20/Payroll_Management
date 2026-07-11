@@ -7,8 +7,7 @@ require("dotenv").config();
 const app = express();
 
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173", // must be an exact origin, not '*', when credentials are used
-  credentials: true,
+  origin: process.env.CLIENT_URL || "http://localhost:5173", 
 }));
 app.use(cookieParser()); 
 app.use(express.json());

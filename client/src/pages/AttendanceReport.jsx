@@ -4,7 +4,110 @@ import AttendanceSummary from '../components/attendance/AttendanceSummary';
 import AttendanceTable from '../components/attendance/AttendanceTable';
 import AttendanceDetailModal from '../components/attendance/AttendanceDetailModal';
 import { generateAttendanceReport, exportAttendanceExcel } from '../services/attendanceReportApi';
-import './AttendanceReport.css';
+
+// Same pattern as LeaveManagement.jsx / Attendance.jsx: Bootstrap's
+// .card/.table/.form-control/.modal-content don't know about the
+// --vb-* theme variables (defined once in Topbar.jsx), so without this
+// override block they stay hardcoded light — including the detail
+// modal, which is rendered as a plain nested div here (no portal), so
+// it's still a descendant of .attendance-report-page and gets themed too.
+const attendance_report_styles = `
+  .attendance-report-page .card {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: none;
+    box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+  }
+
+  .attendance-report-page .form-select,
+  .attendance-report-page .form-control {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #ced4da);
+  }
+  .attendance-report-page .form-label { color: var(--vb-text, #1e293b); }
+
+  .attendance-report-page .table {
+    color: var(--vb-text, #1e293b);
+  }
+  .attendance-report-page .table.table-bordered {
+    border-color: var(--vb-border, #dee2e6);
+  }
+  .attendance-report-page .table thead th {
+    color: var(--vb-text-muted, #495057);
+    border-color: var(--vb-border, #dee2e6);
+    font-weight: 600;
+  }
+  .attendance-report-page .table td,
+  .attendance-report-page .table th {
+    border-color: var(--vb-border, #dee2e6);
+    vertical-align: middle;
+  }
+  .attendance-report-page .table > :not(caption) > * > * {
+    background-color: transparent;
+    color: var(--vb-text, #1e293b);
+  }
+  .attendance-report-page .table-hover > tbody > tr:hover > * {
+    background-color: var(--vb-bg-surface-2, #f8f9fc);
+  }
+
+  .attendance-report-page .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+
+  .attendance-report-page .modal-content {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #dee2e6);
+  }
+  .attendance-report-page .modal-header,
+  .attendance-report-page .modal-footer {
+    border-color: var(--vb-border, #dee2e6);
+  }
+
+  .attendance-report-page .page-link {
+    background: var(--vb-bg-surface, #fff);
+    color: var(--vb-text, #1e293b);
+    border-color: var(--vb-border, #dee2e6);
+  }
+  .attendance-report-page .page-item.active .page-link {
+    background: #a4133c;
+    border-color: #a4133c;
+    color: #fff;
+  }
+  .attendance-report-page .page-item.disabled .page-link {
+    background: var(--vb-bg-surface-2, #f8f9fc);
+    color: var(--vb-text-muted, #6c757d);
+  }
+
+  /* ---- merged from the former AttendanceReport.css ---- */
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+
+    .print-area,
+    .print-area * {
+      visibility: visible;
+    }
+
+    .print-area {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+    }
+
+    /* Scrollable containers get clipped/blank when printed if left as
+       overflow:auto -- force them to render fully. */
+    .print-area .table-responsive {
+      overflow: visible !important;
+      max-height: none !important;
+    }
+
+    @page {
+      size: landscape;
+    }
+  }
+`;
 
 export default function AttendanceReport() {
   const [loading, setLoading] = useState(false);
@@ -88,6 +191,8 @@ export default function AttendanceReport() {
 
   return (
     <div className="attendance-report-page">
+      <style>{attendance_report_styles}</style>
+
       <div className="dashboard-header mb-3">
         <h1 className="dashboard-title">Attendance Report</h1>
         <p className="dashboard-subtitle">Generate, print, and export attendance for any period.</p>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import html2pdf from 'html2pdf.js';
-import './PayslipGenerator.css';
 import PayslipPreview from '../components/PayslipPreview';
 import { fn } from '../utils/payslipFormat';
 import {
@@ -16,6 +15,272 @@ function firstLastOfMonth(d = new Date()) {
   const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
   return [first.toISOString().split('T')[0], last.toISOString().split('T')[0]];
 }
+
+// Everything that used to live in PayslipGenerator.css, now inlined so there's
+// one file to maintain. The original rules hardcoded light-mode colors
+// (#fff backgrounds, #212529 text, etc.) which is why the filter box, the
+// employee multi-select, and the table header stayed a bright white/pink
+// panel on the dark theme. Backgrounds/text/borders that should follow the
+// theme now read from the --vb-* variables (defined once in Topbar.jsx);
+// the semantic badge/tag colors (pending/approved/row-approved) are left as
+// intentional accent colors since they're small pastel chips, not full panels.
+const payslip_generator_styles = `
+  .kr-page-container #empTable thead th.sorting,
+  .kr-page-container #empTable thead th.sorting_asc,
+  .kr-page-container #empTable thead th.sorting_desc {
+      background-color: #ffc6cd !important;
+      color: #1e1e1e;
+  }
+  .kr-page-container #empTable thead th { background-color: #ffc6cd; color: #1e1e1e; cursor: pointer; user-select: none; }
+
+  .kr-page-container .card {
+      background: var(--vb-bg-surface, #fff);
+      color: var(--vb-text, #1e293b);
+      border: none;
+      box-shadow: 0 4px 16px var(--vb-shadow, rgba(0,0,0,0.06));
+  }
+
+  .kr-page-container .filter-section {
+      background: var(--vb-bg-surface-2, #f8f9fa);
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+  }
+
+  .kr-page-container .form-label { color: var(--vb-text, #1e293b); }
+  .kr-page-container .form-select,
+  .kr-page-container .form-control {
+      background: var(--vb-bg-surface-2, #fff);
+      color: var(--vb-text, #1e293b);
+      border: 1px solid var(--vb-border, #ced4da);
+  }
+  .kr-page-container .form-control.bg-light {
+      background: var(--vb-bg-surface-2, #f8f9fa) !important;
+      color: var(--vb-text, #1e293b);
+  }
+
+  .kr-page-container .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+
+  .kr-page-container .table {
+      color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table.table-bordered {
+      border-color: var(--vb-border, #dee2e6);
+  }
+  .kr-page-container .table td,
+  .kr-page-container .table th {
+      border-color: var(--vb-border, #dee2e6);
+      vertical-align: middle;
+  }
+  .kr-page-container .table > :not(caption) > * > * {
+      background-color: transparent;
+      color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .table-hover > tbody > tr:hover > * {
+      background-color: var(--vb-bg-surface-2, #f8f9fc);
+  }
+
+  .kr-page-container .status-badge-pending {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background-color: #fef9c3;
+      color: #854d0e;
+      border: 1px solid #fde047;
+  }
+
+  .kr-page-container .status-badge-approved {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background-color: #d1fae5;
+      color: #065f46;
+      border: 1px solid #6ee7b7;
+  }
+
+  .kr-page-container tr.row-approved td { background-color: #d1f0dd !important; }
+  .kr-page-container .row-approved { background-color: #f0fdf4 !important; }
+  .kr-page-container .row-approved td { color: #374151; }
+
+  .kr-page-container #empTable .btn-success:disabled {
+      background-color: #86efac;
+      border-color: #86efac;
+      color: #14532d;
+      opacity: 1;
+  }
+
+  /* ── Multi-Select Dropdown ── */
+  .kr-page-container .emp-selector-wrapper { position: relative; }
+
+  .kr-page-container .emp-selector-box {
+      border: 1.5px solid var(--vb-border, #ced4da);
+      border-radius: 8px;
+      padding: 5px 10px;
+      min-height: 42px;
+      cursor: text;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      align-items: center;
+      background: var(--vb-bg-surface-2, #fff);
+      transition: border-color .2s, box-shadow .2s;
+      max-height: 80px;
+      overflow-y: auto;
+      overflow-x: hidden;
+  }
+
+  .kr-page-container .emp-selector-box:focus-within {
+      border-color: #198754;
+      box-shadow: 0 0 0 3px rgba(25,135,84,.15);
+  }
+
+  .kr-page-container .emp-selector-box input {
+      border: none;
+      outline: none;
+      font-size: 14px;
+      flex: 1;
+      min-width: 140px;
+      background: transparent;
+      color: var(--vb-text, #212529);
+      padding: 2px 0;
+  }
+
+  .kr-page-container .emp-selector-box::-webkit-scrollbar { width: 4px; }
+  .kr-page-container .emp-selector-box::-webkit-scrollbar-track { background: var(--vb-bg-surface-2, #f1f1f1); border-radius: 4px; }
+  .kr-page-container .emp-selector-box::-webkit-scrollbar-thumb { background: #adb5bd; border-radius: 4px; }
+  .kr-page-container .emp-selector-box::-webkit-scrollbar-thumb:hover { background: #6c757d; }
+
+  .kr-page-container .emp-selector-box input::placeholder { color: var(--vb-text-muted, #adb5bd); }
+
+  .kr-page-container .emp-tag {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #6ee7b7;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      max-width: 160px;
+  }
+
+  .kr-page-container .emp-tag span { overflow: hidden; text-overflow: ellipsis; }
+
+  .kr-page-container .emp-tag-remove { cursor: pointer; color: #065f46; font-size: 11px; flex-shrink: 0; line-height: 1; }
+  .kr-page-container .emp-tag-remove:hover { color: #dc3545; }
+
+  .kr-page-container .emp-tag-all { background: #198754; color: #fff; border-color: #146c43; }
+  .kr-page-container .emp-tag-all .emp-tag-remove { color: rgba(255,255,255,.8); }
+  .kr-page-container .emp-tag-all .emp-tag-remove:hover { color: #fff; }
+
+  .kr-page-container .emp-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: var(--vb-bg-surface, #fff);
+      border: 1.5px solid var(--vb-border, #dee2e6);
+      border-radius: 10px;
+      box-shadow: 0 8px 28px var(--vb-shadow, rgba(0,0,0,0.13));
+      z-index: 1055;
+      display: none;
+      flex-direction: column;
+      max-height: 320px;
+      overflow: hidden;
+  }
+
+  .kr-page-container .emp-dropdown.open { display: flex; }
+
+  .kr-page-container .emp-dd-selectall {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #198754;
+      border-bottom: 1px solid var(--vb-border, #f0f2f5);
+      cursor: pointer;
+      background: var(--vb-bg-surface-2, #f8fffe);
+      transition: background .15s;
+      user-select: none;
+  }
+
+  .kr-page-container .emp-dd-selectall:hover { background: var(--vb-bg-surface-2, #ecfdf5); }
+  .kr-page-container .emp-dd-selectall input[type=checkbox] { accent-color: #198754; width: 15px; height: 15px; }
+
+  .kr-page-container .emp-dd-list { overflow-y: auto; flex: 1; }
+
+  .kr-page-container .emp-dd-item {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 9px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--vb-border, #f8f9fa);
+      transition: background .12s;
+      user-select: none;
+  }
+
+  .kr-page-container .emp-dd-item:last-child { border-bottom: none; }
+  .kr-page-container .emp-dd-item:hover { background: var(--vb-bg-surface-2, #f8fffe); }
+  .kr-page-container .emp-dd-item.is-selected { background: var(--vb-bg-surface-2, #ecfdf5); }
+  .kr-page-container .emp-dd-item input[type=checkbox] { accent-color: #198754; width: 15px; height: 15px; flex-shrink: 0; }
+
+  .kr-page-container .emp-dd-avatar {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: var(--vb-bg-surface-2, #e9ecef);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--vb-text-muted, #6c757d);
+      font-size: 14px;
+      flex-shrink: 0;
+  }
+
+  .kr-page-container .emp-dd-info { flex: 1; overflow: hidden; }
+
+  .kr-page-container .emp-dd-name {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--vb-text, #212529);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+  }
+
+  .kr-page-container .emp-dd-code { font-size: 11.5px; color: var(--vb-text-muted, #6c757d); margin-top: 1px; }
+
+  .kr-page-container .emp-dd-status { font-size: 11px; padding: 2px 7px; border-radius: 20px; font-weight: 600; flex-shrink: 0; }
+  .kr-page-container .emp-dd-status.approved { background: #d1fae5; color: #065f46; }
+  .kr-page-container .emp-dd-status.pending { background: #fef9c3; color: #92400e; }
+
+  .kr-page-container .emp-dd-empty { padding: 24px; text-align: center; color: var(--vb-text-muted, #adb5bd); font-size: 13.5px; }
+  .kr-page-container .emp-dd-empty i { display: block; font-size: 22px; margin-bottom: 8px; }
+
+  .kr-page-container #approveSelectedBtn { white-space: nowrap; }
+
+  .kr-page-container .modal-content {
+      background: var(--vb-bg-surface, #fff);
+      color: var(--vb-text, #1e293b);
+      border: none;
+  }
+  .kr-page-container .modal-header.custom-modal-header {
+      background: var(--vb-bg-surface-2, #f8f9fc);
+      color: var(--vb-text, #1e293b);
+      border-bottom: 1px solid var(--vb-border, #dee2e6);
+  }
+  .kr-page-container .modal-footer {
+      border-top: 1px solid var(--vb-border, #dee2e6);
+  }
+`;
 
 export default function PayslipGenerator() {
   const [fromDate, setFromDate] = useState('');
@@ -323,7 +588,9 @@ export default function PayslipGenerator() {
   }
 
   return (
-    <div className="p-4" id="kr-content">
+    <div className="p-4 kr-page-container" id="kr-content">
+      <style>{payslip_generator_styles}</style>
+
       <div className="kr-page-container">
         <nav aria-label="breadcrumb" className="kr-breadcrumb">
           <ol className="breadcrumb">
