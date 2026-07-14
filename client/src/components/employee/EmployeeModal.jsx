@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import employeeService, { FILE_BASE } from '../../services/employeeService';
+import defaultProfile from "../../assets/images/default-profile.png";
 
 const STEP_LABELS = ['Basic Details', 'KYC Details', 'Job Info', 'Salary Info'];
 const STEP_ICONS = ['fa-user', 'fa-university', 'fa-briefcase', 'fa-rupee-sign'];
@@ -24,7 +25,7 @@ export default function EmployeeModal({ employeeId, departments, onClose, onSave
   const [errors, setErrors] = useState({});
   const [roles, setRoles] = useState([]);
   const [managers, setManagers] = useState([]);
-  const [profilePreview, setProfilePreview] = useState('/assets/images/default-profile.png');
+  const [profilePreview, setProfilePreview] = useState('defaultProfile');
   const [profileFile, setProfileFile] = useState(null);
   const [certFile, setCertFile] = useState(null);
   const [certPreview, setCertPreview] = useState(null);

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import { getManagerQueue, managerAction } from '../../services/leaveApi';
 import LeaveStatusBadge from './LeaveStatusBadge';
+import DataTable from '../common/DataTable';
 
 export default function ManagerLeaveQueue({ category }) {
   const [rows, setRows] = useState([]);
@@ -24,35 +25,46 @@ export default function ManagerLeaveQueue({ category }) {
     load();
   };
 
+  const columns = [
+    {
+      key: 'employee_name',
+      label: 'Employee',
+      render: (r) => `${r.employee_name} (${r.employee_code})`,
+    },
+    { key: 'leave_type_name', label: 'Type' },
+    { key: 'start_date', label: 'From' },
+    { key: 'end_date', label: 'To' },
+    { key: 'days', label: 'Days' },
+    { key: 'reason', label: 'Reason' },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: false,
+      render: (r) => <LeaveStatusBadge status={r.status} isLop={!!r.is_lop} />,
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (r) =>
+        r.status === 'Pending' ? (
+          <>
+            <button className="btn btn-sm btn-success me-2" onClick={() => act(r.id, 'forward')}>Forward to HR</button>
+            <button className="btn btn-sm btn-danger" onClick={() => act(r.id, 'reject')}>Reject</button>
+          </>
+        ) : (
+          <span className="text-muted small">{r.manager_comments || '—'}</span>
+        ),
+    },
+  ];
+
   return (
-    <table className="table table-bordered mt-3">
-      <thead>
-        <tr><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Status</th><th>Actions</th></tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr key={r.id}>
-            <td>{r.employee_name} ({r.employee_code})</td>
-            <td>{r.leave_type_name}</td>
-            <td>{r.start_date}</td>
-            <td>{r.end_date}</td>
-            <td>{r.days}</td>
-            <td>{r.reason}</td>
-            <td><LeaveStatusBadge status={r.status} isLop={!!r.is_lop} /></td>
-            <td>
-              {r.status === 'Pending' ? (
-                <>
-                  <button className="btn btn-sm btn-success me-2" onClick={() => act(r.id, 'forward')}>Forward to HR</button>
-                  <button className="btn btn-sm btn-danger" onClick={() => act(r.id, 'reject')}>Reject</button>
-                </>
-              ) : (
-                <span className="text-muted small">{r.manager_comments || '—'}</span>
-              )}
-            </td>
-          </tr>
-        ))}
-        {rows.length === 0 && <tr><td colSpan="8" className="text-center">No requests yet</td></tr>}
-      </tbody>
-    </table>
+    <DataTable
+      columns={columns}
+      data={rows}
+      searchPlaceholder="Search team requests..."
+      emptyMessage="No requests yet"
+      rowKey={(row) => row.id}
+    />
   );
 }

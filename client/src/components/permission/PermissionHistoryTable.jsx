@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getMyPermissionHistory, cancelPermission } from '../../services/permissionApi';
 import LeaveStatusBadge from '../leave/LeaveStatusBadge';
+import DataTable from '../common/DataTable';
 
 export default function PermissionHistoryTable({ refreshKey }) {
   const [rows, setRows] = useState([]);
@@ -17,34 +18,45 @@ export default function PermissionHistoryTable({ refreshKey }) {
     load();
   };
 
+  const columns = [
+    { key: 'request_date', label: 'Date' },
+    { key: 'from_time', label: 'From' },
+    { key: 'to_time', label: 'To' },
+    { key: 'reason', label: 'Reason' },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: false,
+      render: (r) => <LeaveStatusBadge status={r.status} isLop={false} />,
+    },
+    {
+      key: 'manager_comments',
+      label: 'Manager Remarks',
+      render: (r) => r.manager_comments || '-',
+    },
+    {
+      key: 'hr_comments',
+      label: 'HR Remarks',
+      render: (r) => r.hr_comments || '-',
+    },
+    {
+      key: 'actions',
+      label: '',
+      sortable: false,
+      render: (r) =>
+        r.status === 'Pending' ? (
+          <button className="btn btn-sm btn-outline-danger" onClick={() => handleCancel(r.id)}>Cancel</button>
+        ) : null,
+    },
+  ];
+
   return (
-    <div className="table-responsive">
-      <table className="table table-bordered mt-3">
-        <thead>
-          <tr>
-            <th>Date</th><th>From</th><th>To</th><th>Reason</th><th>Status</th><th>Manager Remarks</th><th>HR Remarks</th><th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>{r.request_date}</td>
-              <td>{r.from_time}</td>
-              <td>{r.to_time}</td>
-              <td>{r.reason}</td>
-              <td><LeaveStatusBadge status={r.status} isLop={false} /></td>
-              <td>{r.manager_comments || '-'}</td>
-              <td>{r.hr_comments || '-'}</td>
-              <td>
-                {r.status === 'Pending' && (
-                  <button className="btn btn-sm btn-outline-danger" onClick={() => handleCancel(r.id)}>Cancel</button>
-                )}
-              </td>
-            </tr>
-          ))}
-          {rows.length === 0 && <tr><td colSpan="8" className="text-center">No permission requests yet</td></tr>}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      columns={columns}
+      data={rows}
+      searchPlaceholder="Search permission history..."
+      emptyMessage="No permission requests yet"
+      rowKey={(row) => row.id}
+    />
   );
 }

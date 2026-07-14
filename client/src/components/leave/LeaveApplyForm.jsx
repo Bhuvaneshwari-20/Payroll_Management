@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
 import { getLeaveTypes, applyLeave } from '../../services/leaveApi';
 
 export default function LeaveApplyForm({ category, onApplied }) {
@@ -23,9 +24,27 @@ export default function LeaveApplyForm({ category, onApplied }) {
     try {
       await applyLeave({ ...form, category });
       setForm({ leaveTypeId: '', startDate: '', endDate: '', startShift: 'Full day', endShift: 'Full day', reason: '' });
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Request submitted',
+        text: `Your ${category === 'special' ? 'special leave' : 'leave'} request was submitted successfully.`,
+        confirmButtonColor: '#198754',
+        timer: 2500,
+        timerProgressBar: true,
+      });
+
       onApplied?.();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit request');
+      const message = err.response?.data?.message || 'Failed to submit request';
+      setError(message);
+
+      Swal.fire({
+        icon: 'error',
+        title: 'Submission failed',
+        text: message,
+        confirmButtonColor: '#dc3545',
+      });
     } finally {
       setLoading(false);
     }

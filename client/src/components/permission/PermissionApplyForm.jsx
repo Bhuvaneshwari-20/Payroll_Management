@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Swal from 'sweetalert2';
 import { applyPermission } from '../../services/permissionApi';
 
 export default function PermissionApplyForm({ onApplied }) {
@@ -15,9 +16,27 @@ export default function PermissionApplyForm({ onApplied }) {
     try {
       await applyPermission(form);
       setForm({ requestDate: '', fromTime: '', toTime: '', reason: '' });
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Request submitted',
+        text: 'Your permission request was submitted successfully.',
+        confirmButtonColor: '#198754',
+        timer: 2500,
+        timerProgressBar: true,
+      });
+
       onApplied?.();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit permission request');
+      const message = err.response?.data?.message || 'Failed to submit permission request';
+      setError(message);
+
+      Swal.fire({
+        icon: 'error',
+        title: 'Submission failed',
+        text: message,
+        confirmButtonColor: '#dc3545',
+      });
     } finally {
       setLoading(false);
     }

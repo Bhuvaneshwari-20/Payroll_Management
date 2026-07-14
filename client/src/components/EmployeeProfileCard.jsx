@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from 'react';
 import { fetchMyProfile } from '../services/dashboardService';
+import defaultProfile from "../assets/images/default-profile.png";
 
 export default function EmployeeProfileCard() {
   const [profile, setProfile] = useState(null);
@@ -25,7 +26,7 @@ export default function EmployeeProfileCard() {
           src={
             profile.profile_image
               ? `/api/uploads/profiles/${profile.profile_image}`
-              : '/assets/images/default-profile.png'
+              : defaultProfile
           }
           alt="Profile"
           className="profile-img"
