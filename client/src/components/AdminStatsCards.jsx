@@ -1,5 +1,3 @@
-
-
 import { useEffect, useState } from 'react';
 import { fetchAdminStats } from '../services/dashboardService';
 
@@ -129,6 +127,11 @@ export default function AdminStatsCards() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [activeCard, setActiveCard] = useState(null);
+
+  function toggleCard(name) {
+    setActiveCard((prev) => (prev === name ? null : name));
+  }
 
   async function load() {
     try {
@@ -331,10 +334,55 @@ export default function AdminStatsCards() {
         .absent-card:active {
           box-shadow: 0 14px 34px rgba(239, 68, 68, 0.4);
         }
+
+        /* ── Selected (clicked) state ─────────────────────────────────
+           On click, a card gets marked .is-selected: it lifts further
+           than a hover, gets a distinct "selected" ring, and swaps in a
+           unique gradient per card so it's obviously different from
+           both its resting and hover appearance. */
+        .stat-card.is-selected {
+          transform: translateY(-10px) scale(1.03);
+          background-position: 100% 50%;
+        }
+
+        .stat-card.is-selected::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 20px;
+          border: 2px solid rgba(255, 255, 255, 0.85);
+          pointer-events: none;
+        }
+
+        .departments-card.is-selected {
+          background-image: linear-gradient(135deg, #f59e0b 0%, #f97316 45%, #ea580c 100%);
+          box-shadow: 0 22px 42px rgba(249, 115, 22, 0.45);
+        }
+
+        .employees-card.is-selected {
+          background-image: linear-gradient(135deg, #a855f7 0%, #8b5cf6 45%, #6d28d9 100%);
+          box-shadow: 0 22px 42px rgba(139, 92, 246, 0.45);
+        }
+
+        .present-card.is-selected {
+          background-image: linear-gradient(135deg, #14b8a6 0%, #0d9488 45%, #0f766e 100%);
+          box-shadow: 0 22px 42px rgba(13, 148, 136, 0.45);
+        }
+
+        .absent-card.is-selected {
+          background-image: linear-gradient(135deg, #ec4899 0%, #db2777 45%, #be185d 100%);
+          box-shadow: 0 22px 42px rgba(219, 39, 119, 0.45);
+        }
       `}</style>
 
       <div className="dashboard-stats-grid">
-        <div className="stat-card departments-card">
+        <div
+          className={`stat-card departments-card ${activeCard === 'departments' ? 'is-selected' : ''}`}
+          onClick={() => toggleCard('departments')}
+          onAnimationEnd={(e) => { e.currentTarget.style.animation = 'none'; }}
+          role="button"
+          tabIndex={0}
+        >
           <div className="stat-header">
             <div className="stat-icon">
               <i className="fas fa-building"></i>
@@ -348,7 +396,13 @@ export default function AdminStatsCards() {
           </div>
         </div>
 
-        <div className="stat-card employees-card">
+        <div
+          className={`stat-card employees-card ${activeCard === 'employees' ? 'is-selected' : ''}`}
+          onClick={() => toggleCard('employees')}
+          onAnimationEnd={(e) => { e.currentTarget.style.animation = 'none'; }}
+          role="button"
+          tabIndex={0}
+        >
           <div className="stat-header">
             <div className="stat-icon">
               <i className="fas fa-users"></i>
@@ -380,7 +434,13 @@ export default function AdminStatsCards() {
           </div>
         </div>
 
-        <div className="stat-card present-card">
+        <div
+          className={`stat-card present-card ${activeCard === 'present' ? 'is-selected' : ''}`}
+          onClick={() => toggleCard('present')}
+          onAnimationEnd={(e) => { e.currentTarget.style.animation = 'none'; }}
+          role="button"
+          tabIndex={0}
+        >
           <div className="stat-header">
             <div className="stat-icon">
               <i className="fas fa-user-check"></i>
@@ -394,7 +454,13 @@ export default function AdminStatsCards() {
           </div>
         </div>
 
-        <div className="stat-card absent-card">
+        <div
+          className={`stat-card absent-card ${activeCard === 'absent' ? 'is-selected' : ''}`}
+          onClick={() => toggleCard('absent')}
+          onAnimationEnd={(e) => { e.currentTarget.style.animation = 'none'; }}
+          role="button"
+          tabIndex={0}
+        >
           <div className="stat-header">
             <div className="stat-icon">
               <i className="fas fa-user-times"></i>

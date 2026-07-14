@@ -23,12 +23,16 @@ import ManagerPermissionQueue from '../components/permission/ManagerPermissionQu
 const leave_management_styles = `
   .kr-page-container .nav-tabs {
     border-bottom: 1px solid var(--vb-border, #dee2e6);
+    flex-wrap: wrap !important;
+    overflow-x: visible !important;
+    row-gap: 0.35rem;
   }
   .kr-page-container .nav-tabs .nav-link {
     color: var(--vb-text-muted, #495057);
     border: none;
     border-bottom: 2px solid transparent;
     background: transparent;
+    white-space: nowrap;
   }
   .kr-page-container .nav-tabs .nav-link:hover {
     color: var(--vb-text, #1e293b);
@@ -38,6 +42,14 @@ const leave_management_styles = `
     color: var(--vb-text, #1e293b);
     background: transparent;
     border-bottom: 2px solid #a4133c;
+  }
+
+  .kr-page-container .leave-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
   }
 
   .kr-page-container .form-select,
@@ -85,6 +97,14 @@ const leave_management_styles = `
   }
 
   .kr-page-container .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 768px) {
+    .kr-page-container .leave-header-row { flex-direction: column; align-items: stretch; }
+    .kr-page-container .leave-header-row select { width: 100%; }
+    .kr-page-container .nav-tabs .nav-link { padding: 0.5rem 0.65rem; font-size: 0.85rem; }
+    .kr-page-container .table { font-size: 0.85rem; }
+  }
 `;
 
 export default function LeaveManagement() {
@@ -111,7 +131,7 @@ export default function LeaveManagement() {
     <div className="kr-page-container">
       <style>{leave_management_styles}</style>
 
-      <div className="d-flex justify-content-between align-items-center mb-3">
+      <div className="leave-header-row mb-3">
         <ul className="nav nav-tabs">
           <li className="nav-item"><button className={`nav-link ${tab === 'apply' ? 'active' : ''}`} onClick={() => setTab('apply')}>Apply</button></li>
           <li className="nav-item"><button className={`nav-link ${tab === 'my' ? 'active' : ''}`} onClick={() => setTab('my')}>My Requests</button></li>

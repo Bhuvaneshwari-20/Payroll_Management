@@ -322,7 +322,7 @@ export default function EmployeeModal({ employeeId, departments, onClose, onSave
               </div>
             </div>
 
-            <div style={{ padding: '28px 32px' }}>
+            <div className="emp-step-body">
               {step === 1 && (
                 <div className="emp-step-panel">
                   <div className="emp-section-title"><i className="fas fa-user-circle me-2"></i>Basic Details</div>
@@ -612,19 +612,19 @@ export default function EmployeeModal({ employeeId, departments, onClose, onSave
           </div>
 
           <div className="emp-modal-footer">
-            <button type="button" className="btn btn-light px-4" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn btn-light px-4 emp-footer-btn" onClick={onClose}>Cancel</button>
             {step > 1 && (
-              <button type="button" className="btn emp-btn-outline px-4" onClick={handlePrev}>
+              <button type="button" className="btn emp-btn-outline px-4 emp-footer-btn" onClick={handlePrev}>
                 <i className="fas fa-chevron-left me-1"></i> Previous
               </button>
             )}
             {step < 4 && (
-              <button type="button" className="btn emp-btn-primary px-4" onClick={handleNext}>
+              <button type="button" className="btn emp-btn-primary px-4 emp-footer-btn" onClick={handleNext}>
                 Next <i className="fas fa-chevron-right ms-1"></i>
               </button>
             )}
             {step === 4 && (
-              <button type="button" className="btn emp-btn-success px-4" disabled={saving} onClick={handleFinalSubmit}>
+              <button type="button" className="btn emp-btn-success px-4 emp-footer-btn" disabled={saving} onClick={handleFinalSubmit}>
                 <i className="fas fa-check me-1"></i> {saving ? 'Saving...' : 'Save Employee'}
               </button>
             )}

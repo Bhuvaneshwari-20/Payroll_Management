@@ -33,7 +33,7 @@ export default function ManagersTab() {
 
     const result = await Swal.fire({
       title: 'Add Manager',
-      width: 440,
+      width: 'min(440px, 92vw)',
       padding: '1.5rem',
       scrollbarPadding: false,
       html: `
@@ -119,24 +119,26 @@ export default function ManagersTab() {
         {loading ? (
           <div className="text-center py-3">Loading...</div>
         ) : (
-          <DataTable
-            data={managers}
-            searchPlaceholder="Search managers..."
-            emptyMessage="No managers found"
-            columns={[
-              { key: 'department_name', label: 'Department' },
-              { key: 'employee_code', label: 'Employee Code' },
-              { key: 'name', label: 'Manager Name' },
-              {
-                key: 'actions', label: 'Actions', sortable: false,
-                render: (mgr) => (
-                  <button className="btn btn-sm btn-danger" onClick={() => removeManager(mgr.id)}>
-                    <i className="fas fa-trash"></i>
-                  </button>
-                ),
-              },
-            ]}
-          />
+          <div className="table-responsive">
+            <DataTable
+              data={managers}
+              searchPlaceholder="Search managers..."
+              emptyMessage="No managers found"
+              columns={[
+                { key: 'department_name', label: 'Department' },
+                { key: 'employee_code', label: 'Employee Code' },
+                { key: 'name', label: 'Manager Name' },
+                {
+                  key: 'actions', label: 'Actions', sortable: false,
+                  render: (mgr) => (
+                    <button className="btn btn-sm btn-danger" onClick={() => removeManager(mgr.id)}>
+                      <i className="fas fa-trash"></i>
+                    </button>
+                  ),
+                },
+              ]}
+            />
+          </div>
         )}
       </div>
     </div>

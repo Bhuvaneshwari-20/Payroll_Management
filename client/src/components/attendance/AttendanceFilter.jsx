@@ -64,7 +64,7 @@ export default function AttendanceFilter({ onGenerate, loading }) {
     <div className="card p-3 mb-3">
       <div className="row g-3 align-items-end">
         {isHR && (
-          <div className="col-md-2">
+          <div className="col-6 col-md-2">
             <label className="form-label fw-bold">Department</label>
             <select
               className="form-select"
@@ -80,7 +80,7 @@ export default function AttendanceFilter({ onGenerate, loading }) {
         )}
 
         {canPickOtherEmployees && (
-          <div className="col-md-2">
+          <div className="col-6 col-md-2">
             <label className="form-label fw-bold">Employee</label>
             <select
               className="form-select"
@@ -97,7 +97,7 @@ export default function AttendanceFilter({ onGenerate, loading }) {
           </div>
         )}
 
-        <div className="col-md-2">
+        <div className="col-6 col-md-2">
           <label className="form-label fw-bold">Period</label>
           <select className="form-select" value={mode} onChange={(e) => setMode(e.target.value)}>
             <option value="month">Month</option>
@@ -106,7 +106,7 @@ export default function AttendanceFilter({ onGenerate, loading }) {
         </div>
 
         {mode === 'month' ? (
-          <div className="col-md-2">
+          <div className="col-6 col-md-2">
             <label className="form-label fw-bold">Month</label>
             <input
               type="month"
@@ -117,7 +117,7 @@ export default function AttendanceFilter({ onGenerate, loading }) {
           </div>
         ) : (
           <>
-            <div className="col-md-2">
+            <div className="col-6 col-md-2">
               <label className="form-label fw-bold">From Date</label>
               <input
                 type="date"
@@ -126,7 +126,7 @@ export default function AttendanceFilter({ onGenerate, loading }) {
                 onChange={(e) => setFromDate(e.target.value)}
               />
             </div>
-            <div className="col-md-2">
+            <div className="col-6 col-md-2">
               <label className="form-label fw-bold">To Date</label>
               <input
                 type="date"
@@ -138,14 +138,14 @@ export default function AttendanceFilter({ onGenerate, loading }) {
           </>
         )}
 
-        <div className="col-md-2">
+        <div className="col-6 col-md-2">
           <label className="form-label fw-bold">Status</label>
           <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}>
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
 
-        <div className="col-md-2">
+        <div className="col-12 col-md-2">
           <button className="btn btn-primary w-100" onClick={handleGenerate} disabled={loading}>
             {loading ? 'Generating...' : 'Generate Report'}
           </button>

@@ -152,7 +152,9 @@ const emp_management_styles = `
     background-color: rgb(145, 23, 68);
     padding: 20px 28px; border: none;
     display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
   }
+  .emp-modal-header h5 { min-width: 0; overflow-wrap: anywhere; }
   .emp-modal-footer {
     border-top: 1px solid var(--vb-border, #e5e7eb);
     padding: 16px 28px; display: flex; justify-content: flex-end; gap: 10px;
@@ -160,11 +162,14 @@ const emp_management_styles = `
   .emp-modal-content .modal-header,
   .emp-modal-content .modal-title { color: var(--vb-text, #1e293b); }
 
+  .emp-step-body { padding: 28px 32px; }
+
   /* Master Data dropdown (Bootstrap defaults) + misc muted text, kept theme-aware */
   .kr-page-container .dropdown-menu {
     background: var(--vb-bg-surface, #fff);
     border-color: var(--vb-border, #e6e8ec);
     box-shadow: 0 14px 34px var(--vb-shadow, rgba(0,0,0,0.1));
+    max-width: calc(100vw - 2rem);
   }
   .kr-page-container .dropdown-item {
     color: var(--vb-text, #1e293b);
@@ -217,6 +222,12 @@ const emp_management_styles = `
     background-color: var(--vb-bg-surface-2, #f8f9fc);
   }
 
+  /* Make horizontally-scrollable tables on narrow screens obvious and
+     comfortable to swipe, instead of just silently clipping content. */
+  .kr-page-container .table-responsive {
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* Form controls used in the filter row (Department/Role/Status selects) */
   .kr-page-container .form-label { color: var(--vb-text, #1e293b); }
   .kr-page-container .form-control,
@@ -231,16 +242,156 @@ const emp_management_styles = `
     color: var(--vb-text, #1e293b);
   }
 
-  /* Nav tabs (Employees / Managers / Bulk Upload / ...) */
+  /* Nav tabs (Employees / Managers / Bulk Upload / ...)
+     Force wrapping so every tab is always reachable without a swipe —
+     the admin template's default .nav-tabs ships as a nowrap/scrollable
+     row, which is what was clipping tabs on narrow screens (see the
+     mobile screenshots: only 2 tabs + a sliver of a 3rd icon showed). */
+  .kr-page-container .kr-tabs {
+    flex-wrap: wrap !important;
+    overflow-x: visible !important;
+    row-gap: 0.4rem;
+  }
   .kr-page-container .kr-tabs .nav-link {
     color: var(--vb-text-muted, #64748b);
     border: none;
     border-bottom: 2px solid transparent;
+    white-space: nowrap;
   }
   .kr-page-container .kr-tabs .nav-link.active {
     color: var(--vb-text, #1e293b);
     background: transparent;
     border-bottom: 2px solid #a4133c;
+  }
+
+  /* ---------- Page header (shared pattern w/ Departments & Roles) ---------- */
+  .kr-page-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .kr-page-title { font-size: 1.6rem; font-weight: 700; color: var(--vb-text, #1e293b); margin-bottom: 0.15rem; }
+  .kr-page-subtitle { color: var(--vb-text-muted, #64748b); margin-bottom: 0; }
+  .kr-header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #7b0d2e, #a4133c);
+    border: none;
+    color: #fff;
+    padding: 0.55rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .btn-primary:hover { background: linear-gradient(135deg, #650a26, #8f1035); color: #fff; }
+
+  /* Tabs wrap onto multiple lines on narrow screens so every tab stays
+     visible at once — no swipe-to-discover required. */
+  .kr-tabs .nav-link {
+    white-space: nowrap;
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 991px) {
+    .emp-modal-dialog { max-width: 95%; }
+    .emp-step-body { padding: 22px 20px; }
+  }
+
+  @media (max-width: 768px) {
+    .kr-page-header-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .kr-header-actions {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .kr-header-actions .btn-group {
+      margin-left: 0 !important;
+      width: 100%;
+    }
+
+    .kr-header-actions .btn-primary,
+    .kr-header-actions .btn-success {
+      width: 100%;
+    }
+
+    .kr-header-actions .dropdown-menu {
+      width: 100%;
+    }
+
+    .kr-page-title { font-size: 1.3rem; }
+    .kr-page-subtitle { font-size: 0.85rem; }
+
+    .kr-page-container .card-header { padding: 0.85rem 1rem; }
+    .kr-page-container .card-body,
+    .kr-page-container .kr-card-body { padding: 1rem; }
+
+    /* Card headers with a title + action button (Managers, Status History,
+       Upload History tabs) stack instead of squeezing the button. */
+    .kr-page-container .card-header.d-flex {
+      flex-direction: column;
+      align-items: stretch !important;
+      gap: 0.6rem;
+    }
+    .kr-page-container .card-header.d-flex .btn {
+      width: 100%;
+    }
+
+    .kr-page-container .table { font-size: 0.82rem; }
+    .kr-page-container .table thead th,
+    .kr-page-container .table td {
+      padding: 0.55rem 0.5rem;
+      white-space: nowrap;
+    }
+
+    .emp-stepper-wrap { padding: 16px 16px 14px; }
+    .emp-step-circle { width: 32px; height: 32px; font-size: 0.75rem; }
+    .emp-step-label { font-size: 0.62rem; margin-top: 6px; }
+    .emp-stepper-line { top: 16px; }
+
+    .emp-modal-overlay { padding: 0; }
+    .emp-modal-dialog { max-width: 100%; width: 100%; min-height: 100%; margin: 0; }
+    .emp-modal-content { border-radius: 0; min-height: 100vh; }
+    .emp-modal-header { padding: 14px 18px; }
+    .emp-modal-header h5 { font-size: 1rem; }
+    .emp-step-body { padding: 18px 16px; }
+    .emp-modal-footer {
+      padding: 12px 16px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .emp-footer-btn {
+      flex: 1 1 calc(50% - 8px);
+      padding-left: 0.75rem !important;
+      padding-right: 0.75rem !important;
+      font-size: 0.85rem;
+    }
+
+    .emp-avatar-img { width: 80px; height: 80px; }
+    .upload-area { min-height: 140px; padding: 20px; }
+
+    .kr-tabs { row-gap: 0.35rem; }
+    .kr-tabs .nav-link {
+      padding: 0.5rem 0.7rem;
+      font-size: 0.82rem;
+    }
+    .kr-tabs .nav-link i { margin-right: 0.35rem !important; }
+  }
+
+  @media (max-width: 480px) {
+    .kr-page-title { font-size: 1.15rem; }
+    .btn-primary, .btn-success { padding: 0.5rem 0.9rem; font-size: 0.85rem; }
+    .emp-step-label { display: none; }
+    .emp-footer-btn { flex: 1 1 100%; }
   }
 `;
 
@@ -378,6 +529,7 @@ export default function EmployeeManagement() {
 
         const result = await Swal.fire({
             title, icon: 'warning', showCancelButton: true, confirmButtonText: confirmText,
+            width: 'min(500px, 92vw)',
             html: `
         <div class="mb-3"><label class="form-label">Last Working Date:</label><input type="date" id="lastWorkingDate" class="form-control" required></div>
         <div class="mb-3"><label class="form-label">Inactive Date:</label><input type="date" id="inactiveDate" class="form-control" value="${new Date().toISOString().split('T')[0]}" required></div>
@@ -448,21 +600,21 @@ export default function EmployeeManagement() {
                 </nav> */}
 
                 <div className="kr-page-header">
-                    <div className="d-flex justify-content-between align-items-center">
+                    <div className="kr-page-header-row">
                         <div>
                             <h1 className="kr-page-title">Employee Management</h1>
                             <p className="kr-page-subtitle">Manage your organization's employees</p>
                         </div>
-                        <div className="btn-group">
+                        <div className="kr-header-actions">
                             <button type="button" className="btn-primary" onClick={openAddModal}>
                                 <i className="fas fa-plus-circle me-2"></i>Add Employee
                             </button>
-                            <div className="btn-group ms-2 position-relative">
+                            <div className="btn-group position-relative">
                                 <button type="button" className="btn btn-success dropdown-toggle" onClick={() => setMasterDropdownOpen((v) => !v)}>
                                     <i className="fas fa-file-excel me-2"></i>Master Data
                                 </button>
                                 {masterDropdownOpen && (
-                                    <ul className="dropdown-menu show" style={{ position: 'absolute', top: '100%', right: 0 }}>
+                                    <ul className="dropdown-menu show" style={{ position: 'absolute', top: '100%', right: 0, left: 'auto' }}>
                                         <li><a className="dropdown-item" href="#!" onClick={() => downloadMasterData('all')}><i className="fas fa-users me-2"></i>All Employees</a></li>
                                         <li><a className="dropdown-item" href="#!" onClick={() => downloadMasterData('active')}><i className="fas fa-user-check me-2 text-success"></i>Active Only</a></li>
                                         <li><a className="dropdown-item" href="#!" onClick={() => downloadMasterData('inactive')}><i className="fas fa-user-times me-2 text-danger"></i>Inactive Only</a></li>
@@ -541,54 +693,56 @@ export default function EmployeeManagement() {
         {loading ? (
           <div className="text-center py-4">Loading...</div>
         ) : (
-          <DataTable
-            data={employees}
-            searchPlaceholder="Search by ID, Name, or Phone..."
-            emptyMessage="No employees found"
-            columns={[
-              { key: 'employee_code', label: 'ID' },
-              {
-                key: 'image', label: 'Image', sortable: false,
-                render: (emp) => (
-                  <img
-                    src={`${FILE_BASE}/uploads/profiles/${emp.profile_image || 'default.png'}`}
-                    className="rounded-circle"
-                    style={{ width: 40, height: 40, objectFit: 'cover' }}
-                    alt=""
-                    onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = defaultProfile; }}
-                  />
-                ),
-              },
-              {
-                key: 'name', label: 'Name',
-                accessor: (emp) => `${emp.first_name || ''} ${emp.last_name || ''}`.trim(),
-              },
-              { key: 'department_name', label: 'Department' },
-              { key: 'role_name', label: 'Role' },
-              { key: 'email', label: 'Email' },
-              { key: 'phone', label: 'Phone' },
-              {
-                key: 'status', label: 'Status',
-                render: (emp) => emp.status === 'active'
-                  ? <span className="badge bg-success">Active</span>
-                  : <span className="badge bg-danger">Inactive</span>,
-              },
-              {
-                key: 'actions', label: 'Actions', sortable: false,
-                render: (emp) => (
-                  <>
-                    <button className="btn btn-sm btn-primary me-1" onClick={() => openEditModal(emp.id)}><i className="fas fa-edit"></i></button>
-                    {emp.status === 'active' ? (
-                      <button className="btn btn-sm btn-warning me-1" title="Deactivate" onClick={() => handleToggleStatus(emp.id, emp.status)}><i className="fas fa-user-slash"></i></button>
-                    ) : (
-                      <button className="btn btn-sm btn-success me-1" title="Activate" onClick={() => handleToggleStatus(emp.id, emp.status)}><i className="fas fa-user-check"></i></button>
-                    )}
-                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(emp.id)}><i className="fas fa-trash"></i></button>
-                  </>
-                ),
-              },
-            ]}
-          />
+          <div className="table-responsive">
+            <DataTable
+              data={employees}
+              searchPlaceholder="Search by ID, Name, or Phone..."
+              emptyMessage="No employees found"
+              columns={[
+                { key: 'employee_code', label: 'ID' },
+                {
+                  key: 'image', label: 'Image', sortable: false,
+                  render: (emp) => (
+                    <img
+                      src={`${FILE_BASE}/uploads/profiles/${emp.profile_image || 'default.png'}`}
+                      className="rounded-circle"
+                      style={{ width: 40, height: 40, objectFit: 'cover' }}
+                      alt=""
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = defaultProfile; }}
+                    />
+                  ),
+                },
+                {
+                  key: 'name', label: 'Name',
+                  accessor: (emp) => `${emp.first_name || ''} ${emp.last_name || ''}`.trim(),
+                },
+                { key: 'department_name', label: 'Department' },
+                { key: 'role_name', label: 'Role' },
+                { key: 'email', label: 'Email' },
+                { key: 'phone', label: 'Phone' },
+                {
+                  key: 'status', label: 'Status',
+                  render: (emp) => emp.status === 'active'
+                    ? <span className="badge bg-success">Active</span>
+                    : <span className="badge bg-danger">Inactive</span>,
+                },
+                {
+                  key: 'actions', label: 'Actions', sortable: false,
+                  render: (emp) => (
+                    <>
+                      <button className="btn btn-sm btn-primary me-1" onClick={() => openEditModal(emp.id)}><i className="fas fa-edit"></i></button>
+                      {emp.status === 'active' ? (
+                        <button className="btn btn-sm btn-warning me-1" title="Deactivate" onClick={() => handleToggleStatus(emp.id, emp.status)}><i className="fas fa-user-slash"></i></button>
+                      ) : (
+                        <button className="btn btn-sm btn-success me-1" title="Activate" onClick={() => handleToggleStatus(emp.id, emp.status)}><i className="fas fa-user-check"></i></button>
+                      )}
+                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(emp.id)}><i className="fas fa-trash"></i></button>
+                    </>
+                  ),
+                },
+              ]}
+            />
+          </div>
         )}
       </div>
     </div>

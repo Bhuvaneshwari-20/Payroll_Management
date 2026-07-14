@@ -11,12 +11,16 @@ import ManagerPermissionQueue from '../components/permission/ManagerPermissionQu
 const manager_leave_styles = `
   .kr-page-container .nav-tabs {
     border-bottom: 1px solid var(--vb-border, #dee2e6);
+    flex-wrap: wrap !important;
+    overflow-x: visible !important;
+    row-gap: 0.35rem;
   }
   .kr-page-container .nav-tabs .nav-link {
     color: var(--vb-text-muted, #495057);
     border: none;
     border-bottom: 2px solid transparent;
     background: transparent;
+    white-space: nowrap;
   }
   .kr-page-container .nav-tabs .nav-link:hover {
     color: var(--vb-text, #1e293b);
@@ -73,6 +77,12 @@ const manager_leave_styles = `
     color: var(--vb-text, #1e293b);
     font-weight: 700;
     margin-bottom: 1rem;
+  }
+
+  @media (max-width: 768px) {
+    .kr-page-container .nav-tabs .nav-link { padding: 0.5rem 0.65rem; font-size: 0.85rem; }
+    .kr-page-container .table { font-size: 0.85rem; }
+    .kr-page-container .page-heading { font-size: 1.2rem; }
   }
 `;
 

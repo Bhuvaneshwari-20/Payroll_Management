@@ -54,17 +54,26 @@ const admin_leave_styles = `
     background: linear-gradient(90deg, var(--vb-bg-surface-2, #fdf2f4), var(--vb-bg-surface, #ffffff));
     border-bottom: 1px solid var(--vb-border, #f1f1f1);
     color: var(--vb-text, #1e293b);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: space-between;
   }
-  .kr-page-container .card-header h5 { color: var(--vb-text, #1e293b); }
+  .kr-page-container .card-header h5 { color: var(--vb-text, #1e293b); margin: 0; }
 
   .kr-page-container .nav-tabs {
     border-bottom: 1px solid var(--vb-border, #dee2e6);
+    flex-wrap: wrap !important;
+    overflow-x: visible !important;
+    row-gap: 0.35rem;
   }
   .kr-page-container .nav-tabs .nav-link {
     color: var(--vb-text-muted, #495057);
     border: none;
     border-bottom: 2px solid transparent;
     background: transparent;
+    white-space: nowrap;
   }
   .kr-page-container .nav-tabs .nav-link:hover {
     color: var(--vb-text, #1e293b);
@@ -103,6 +112,26 @@ const admin_leave_styles = `
     background-color: var(--vb-bg-surface-2, #f8f9fc);
   }
   .kr-page-container .text-muted { color: var(--vb-text-muted, #6c757d) !important; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 768px) {
+    .kr-page-container .card-header { padding: 0.85rem 1rem; }
+    .kr-page-container .card-header .form-select { width: 100%; }
+    .kr-page-container .table { font-size: 0.82rem; }
+    .kr-page-container .table thead th,
+    .kr-page-container .table td {
+      padding: 0.55rem 0.5rem;
+      white-space: nowrap;
+    }
+    .kr-page-container .nav-tabs .nav-link {
+      padding: 0.5rem 0.65rem;
+      font-size: 0.82rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .kr-page-container .stat-tile h3 { font-size: 1.35rem; }
+  }
 `;
 
 export default function AdminLeaveManagement() {
@@ -182,7 +211,7 @@ const loadStats = useCallback(() => {
       <style>{admin_leave_styles}</style>
 
       <div className="row mb-4 g-3">
-        <div className="col-md-3">
+        <div className="col-6 col-md-3">
           <div className="stat-tile stat-tile-primary">
             <div className="d-flex justify-content-between">
               <div><small>Total Requests</small><h3>{stats.total}</h3></div>
@@ -190,7 +219,7 @@ const loadStats = useCallback(() => {
             </div>
           </div>
         </div>
-        <div className="col-md-3">
+        <div className="col-6 col-md-3">
           <div className="stat-tile stat-tile-warning">
             <div className="d-flex justify-content-between">
               <div><small>Pending</small><h3>{stats.pending}</h3></div>
@@ -198,7 +227,7 @@ const loadStats = useCallback(() => {
             </div>
           </div>
         </div>
-        <div className="col-md-3">
+        <div className="col-6 col-md-3">
           <div className="stat-tile stat-tile-success">
             <div className="d-flex justify-content-between">
               <div><small>Approved Today</small><h3>{stats.approved_today}</h3></div>
@@ -206,7 +235,7 @@ const loadStats = useCallback(() => {
             </div>
           </div>
         </div>
-        <div className="col-md-3">
+        <div className="col-6 col-md-3">
           <div className="stat-tile stat-tile-danger">
             <div className="d-flex justify-content-between">
               <div><small>Rejected</small><h3>{stats.rejected}</h3></div>
@@ -234,32 +263,34 @@ const loadStats = useCallback(() => {
             <li className="nav-item"><button className={`nav-link ${tab === 'special' ? 'active' : ''}`} onClick={() => { setTab('special'); setStatusFilter(''); }}><i className="fas fa-star me-1"></i>Special Leave Requests</button></li>
           </ul>
 
-          <table className="table table-hover">
-            <thead>
-              <tr>
-                <th>S.No</th><th>ID</th><th>Employee</th>
-                {tab === 'permission' ? <><th>From</th><th>To</th></> : <><th>Type</th><th>Start</th><th>End</th><th>Days</th></>}
-                <th>Status</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={r.id}>
-                  <td>{i + 1}</td>
-                  <td>{r.employee_code}</td>
-                  <td>{r.employee_name}</td>
-                  {tab === 'permission' ? (
-                    <><td>{r.from_time}</td><td>{r.to_time}</td></>
-                  ) : (
-                    <><td>{r.leave_type_name}</td><td>{r.start_date}</td><td>{r.end_date}</td><td>{r.days}</td></>
-                  )}
-                  <td><LeaveStatusBadge status={r.status} isLop={!!r.is_lop} /></td>
-                  <td>{renderActions(r)}</td>
+          <div className="table-responsive">
+            <table className="table table-hover">
+              <thead>
+                <tr>
+                  <th>S.No</th><th>ID</th><th>Employee</th>
+                  {tab === 'permission' ? <><th>From</th><th>To</th></> : <><th>Type</th><th>Start</th><th>End</th><th>Days</th></>}
+                  <th>Status</th><th>Actions</th>
                 </tr>
-              ))}
-              {rows.length === 0 && <tr><td colSpan="8" className="text-center">No requests found</td></tr>}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.id}>
+                    <td>{i + 1}</td>
+                    <td>{r.employee_code}</td>
+                    <td>{r.employee_name}</td>
+                    {tab === 'permission' ? (
+                      <><td>{r.from_time}</td><td>{r.to_time}</td></>
+                    ) : (
+                      <><td>{r.leave_type_name}</td><td>{r.start_date}</td><td>{r.end_date}</td><td>{r.days}</td></>
+                    )}
+                    <td><LeaveStatusBadge status={r.status} isLop={!!r.is_lop} /></td>
+                    <td>{renderActions(r)}</td>
+                  </tr>
+                ))}
+                {rows.length === 0 && <tr><td colSpan="8" className="text-center">No requests found</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

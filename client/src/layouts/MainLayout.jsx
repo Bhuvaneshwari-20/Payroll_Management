@@ -16,6 +16,11 @@ import useForcePasswordChange from '../utils/useForcePasswordChange';
 // ---------------------------------------------------------------------------
 
 export default function MainLayout() {
+  // Starts OPEN: the sidebar should always be visible from the moment you
+  // log in, on every screen size. On mobile it's an off-canvas drawer, but
+  // it now opens by default too — the only thing that should toggle it is
+  // the hamburger button in the Topbar (see onToggleSidebar below). It no
+  // longer auto-closes from clicking a nav link or tapping outside.
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Runs once per authenticated session, on every protected page —
@@ -46,7 +51,10 @@ export default function MainLayout() {
         }
       `}</style>
 
-      <Sidebar />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
       <div className="kr-main">
         <Topbar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
         <div className="p-4" id="kr-content">

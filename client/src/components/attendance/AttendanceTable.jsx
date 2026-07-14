@@ -133,7 +133,7 @@ export default function AttendanceTable({ data, onSelectEmployee }) {
       </div>
 
       {totalPages > 1 && (
-        <div className="d-flex justify-content-between align-items-center mt-2">
+        <div className="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
           <span className="text-muted small">Page {page} of {totalPages}</span>
           <div className="btn-group">
             <button className="btn btn-sm btn-outline-secondary" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>Prev</button>

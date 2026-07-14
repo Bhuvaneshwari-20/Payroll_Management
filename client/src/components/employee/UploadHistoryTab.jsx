@@ -47,35 +47,37 @@ export default function UploadHistoryTab() {
         {loading ? (
           <div className="text-center py-3">Loading...</div>
         ) : (
-          <DataTable
-            data={history}
-            rowKey={(row, i) => row.id ?? i}
-            searchPlaceholder="Search uploads..."
-            emptyMessage="No upload history"
-            columns={[
-              { key: 'upload_date', label: 'Date & Time' },
-              { key: 'upload_type', label: 'Upload Type', render: (h) => <span className="badge bg-info">{h.upload_type}</span> },
-              { key: 'file_name', label: 'File Name' },
-              { key: 'records_count', label: 'Records' },
-              { key: 'success_count', label: 'Success', render: (h) => <span className="text-success">{h.success_count}</span> },
-              { key: 'error_count', label: 'Errors', render: (h) => <span className="text-danger">{h.error_count}</span> },
-              {
-                key: 'status', label: 'Status',
-                render: (h) => h.status === 'completed'
-                  ? <span className="badge bg-success">Completed</span>
-                  : <span className="badge bg-warning">Partial</span>,
-              },
-              { key: 'uploaded_by_name', label: 'Uploaded By', render: (h) => h.uploaded_by_name || 'System' },
-              {
-                key: 'actions', label: 'Actions', sortable: false,
-                render: (h) => (
-                  <button className="btn btn-sm btn-primary" onClick={() => downloadFile(h.file_path, h.file_name)}>
-                    <i className="fas fa-download"></i>
-                  </button>
-                ),
-              },
-            ]}
-          />
+          <div className="table-responsive">
+            <DataTable
+              data={history}
+              rowKey={(row, i) => row.id ?? i}
+              searchPlaceholder="Search uploads..."
+              emptyMessage="No upload history"
+              columns={[
+                { key: 'upload_date', label: 'Date & Time' },
+                { key: 'upload_type', label: 'Upload Type', render: (h) => <span className="badge bg-info">{h.upload_type}</span> },
+                { key: 'file_name', label: 'File Name' },
+                { key: 'records_count', label: 'Records' },
+                { key: 'success_count', label: 'Success', render: (h) => <span className="text-success">{h.success_count}</span> },
+                { key: 'error_count', label: 'Errors', render: (h) => <span className="text-danger">{h.error_count}</span> },
+                {
+                  key: 'status', label: 'Status',
+                  render: (h) => h.status === 'completed'
+                    ? <span className="badge bg-success">Completed</span>
+                    : <span className="badge bg-warning">Partial</span>,
+                },
+                { key: 'uploaded_by_name', label: 'Uploaded By', render: (h) => h.uploaded_by_name || 'System' },
+                {
+                  key: 'actions', label: 'Actions', sortable: false,
+                  render: (h) => (
+                    <button className="btn btn-sm btn-primary" onClick={() => downloadFile(h.file_path, h.file_name)}>
+                      <i className="fas fa-download"></i>
+                    </button>
+                  ),
+                },
+              ]}
+            />
+          </div>
         )}
       </div>
     </div>

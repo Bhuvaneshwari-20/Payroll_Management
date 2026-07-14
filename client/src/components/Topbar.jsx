@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import logo from '../assets/images/logo.png';
 
 // ---------------------------------------------------------------------------
 // Vertex Bank — Topbar
@@ -123,11 +122,6 @@ const initials = String(displayName || 'U').slice(0, 2).toUpperCase();
         .kr-toggle-btn:hover {
           background: var(--vb-border);
           transform: translateY(-1px);
-        }
-
-        .kr-mobile-logo {
-          height: 34px;
-          width: auto;
         }
 
         .kr-topbar-right {
@@ -316,6 +310,51 @@ const initials = String(displayName || 'U').slice(0, 2).toUpperCase();
         .vb-user-dropdown-item:hover {
           background: rgba(214,69,69,0.1);
         }
+
+        /* -------------------------------------------------------------
+           Responsive
+        ------------------------------------------------------------- */
+        @media (max-width: 768px) {
+          .kr-topbar {
+            padding: 0.75rem 1rem;
+          }
+
+          .kr-topbar-right {
+            gap: 0.4rem;
+          }
+
+          .kr-toggle-btn,
+          .kr-theme-btn,
+          .kr-notification-btn {
+            width: 36px;
+            height: 36px;
+          }
+
+          .vb-user-btn {
+            padding: 0.3rem 0.5rem 0.3rem 0.3rem;
+            gap: 0.4rem;
+          }
+
+          /* hide the display name on small screens, keep the avatar */
+          .vb-user-btn span:not(.kr-user-avatar) {
+            display: none;
+          }
+
+          .vb-user-btn i.fa-chevron-down {
+            display: none;
+          }
+
+          .vb-user-dropdown {
+            min-width: 160px;
+            right: -8px;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .kr-notification-menu {
+            display: none;
+          }
+        }
       `}</style>
 
       <div className="d-flex justify-content-between align-items-center">
@@ -323,7 +362,6 @@ const initials = String(displayName || 'U').slice(0, 2).toUpperCase();
           <button type="button" className="kr-toggle-btn" onClick={onToggleSidebar} aria-label="Toggle sidebar">
             <i className="fas fa-bars"></i>
           </button>
-          <img src={logo} alt="Vertex Bank" className="kr-mobile-logo ms-3" />
         </div>
 
         <div className="kr-topbar-right">

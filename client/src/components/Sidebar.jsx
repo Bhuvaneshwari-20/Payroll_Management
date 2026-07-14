@@ -40,14 +40,22 @@ function employeeLinks(isManager) {
   return base;
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen = false, onClose = () => {} }) {
   const { user } = useAuth();
   const isHR = user?.role === 'HR';
 
   const links = isHR ? adminLinks : employeeLinks(!!user?.isManager);
 
   return (
-    <div className="kr-sidebar">
+    <>
+      {/* backdrop, mobile only — purely a visual dim behind the open
+          drawer now. It no longer closes the sidebar on tap; only the
+          hamburger button in the Topbar (onToggleSidebar) does that. */}
+      <div
+        className={'kr-sidebar-backdrop' + (isOpen ? ' show' : '')}
+        aria-hidden="true"
+      />
+      <div className={'kr-sidebar' + (isOpen ? ' kr-sidebar-open' : '')}>
       <style>{`
         .kr-sidebar {
           width: 250px;
@@ -80,8 +88,22 @@ export default function Sidebar() {
           padding: 1.6rem 1.4rem 1.4rem;
           display: flex;
           align-items: center;
+          justify-content: space-between;
           border-bottom: 1px solid var(--vb-border, #e6e8ec);
           animation: krFadeDown 0.5s ease both;
+        }
+
+        .kr-sidebar-close {
+          display: none;
+          background: var(--vb-bg-surface-2, #f8f9fc);
+          border: 1px solid var(--vb-border, #e6e8ec);
+          color: var(--vb-text, #1e293b);
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
         }
 
         @keyframes krFadeDown {
@@ -201,10 +223,63 @@ export default function Sidebar() {
         .kr-nav-item.active i {
           color: #e8622c;
         }
+
+        /* -------------------------------------------------------------
+           Responsive — off-canvas drawer on tablet/mobile
+        ------------------------------------------------------------- */
+        .kr-sidebar-backdrop {
+          display: none;
+        }
+
+        @media (max-width: 992px) {
+          .kr-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            width: 260px;
+            max-width: 80vw;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            box-shadow: 0 0 24px rgba(0,0,0,0.18);
+          }
+
+          .kr-sidebar.kr-sidebar-open {
+            transform: translateX(0);
+          }
+
+          .kr-sidebar-close {
+            display: flex;
+          }
+
+          .kr-sidebar-backdrop {
+            display: block;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+          }
+
+          .kr-sidebar-backdrop.show {
+            opacity: 1;
+            pointer-events: auto;
+          }
+        }
       `}</style>
 
       <div className="kr-sidebar-header">
         <img src={logov} alt="Vertex Bank" className="kr-sidebar-logo" />
+        <button
+          type="button"
+          className="kr-sidebar-close"
+          onClick={onClose}
+          aria-label="Close sidebar"
+        >
+          <i className="fas fa-times"></i>
+        </button>
       </div>
 
       <div className="kr-nav">
@@ -220,6 +295,7 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

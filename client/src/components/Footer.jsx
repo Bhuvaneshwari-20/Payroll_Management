@@ -1,4 +1,3 @@
-
 export default function Footer() {
 
   const currentYear = new Date().getFullYear();
@@ -22,9 +21,36 @@ export default function Footer() {
         .kr-footer a:hover {
           color: var(--vb-orange-dark, #cf5323);
         }
+
+        .kr-footer p {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: center;
+          gap: 0.25rem;
+          margin: 0;
+        }
+
+        @media (max-width: 768px) {
+          .kr-footer {
+            padding: 0.85rem 1rem;
+            font-size: 0.78rem;
+          }
+
+          .kr-footer a {
+            font-size: 13px !important;
+            padding: 2px 4px !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .kr-footer a {
+            display: block;
+          }
+        }
       `}</style>
-      <p className="mb-0">
-        &copy; Copyright {currentYear} Designed and Maintained by{' '}
+      <p>
+        <span>&copy; Copyright {currentYear} Designed and Maintained by</span>
         <a
           href="https://tih.mkce.ac.in"
           style={{
@@ -37,7 +63,7 @@ export default function Footer() {
         >
           Technology Innovation Hub (TIH) - M.Kumarasamy College of Engineering
         </a>
-        All rights reserved.
+        <span>All rights reserved.</span>
       </p>
     </footer>
   );

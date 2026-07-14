@@ -93,11 +93,11 @@ export default function DataTable({
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-        <div className="d-flex align-items-center gap-2">
+        <div className="d-flex align-items-center gap-2 flex-shrink-0">
           <span className="text-muted small">Show</span>
           <select
             className="form-select form-select-sm"
-            style={{ width: 80 }}
+            style={{ width: 80, minWidth: 70 }}
             value={pageSize}
             onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
           >
@@ -106,12 +106,12 @@ export default function DataTable({
           <span className="text-muted small">entries</span>
         </div>
         {enableSearch && (
-          <div className="d-flex align-items-center gap-2">
+          <div className="d-flex align-items-center gap-2" style={{ flex: '1 1 220px', minWidth: 0 }}>
             <span className="text-muted small">Search:</span>
             <input
               type="text"
               className="form-control form-control-sm"
-              style={{ width: 220 }}
+              style={{ width: '100%', maxWidth: 220, minWidth: 140 }}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder={searchPlaceholder}
@@ -170,8 +170,8 @@ export default function DataTable({
             : `Showing ${startIdx + 1} to ${Math.min(startIdx + pageSize, total)} of ${total} entries`}
         </div>
         {totalPages > 1 && (
-          <nav>
-            <ul className="pagination pagination-sm mb-0">
+          <nav style={{ maxWidth: '100%' }}>
+            <ul className="pagination pagination-sm mb-0 flex-wrap">
               <li className={`page-item ${safePage === 1 ? 'disabled' : ''}`}>
                 <button className="page-link" onClick={() => goToPage(safePage - 1)}>Previous</button>
               </li>

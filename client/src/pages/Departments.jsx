@@ -20,6 +20,13 @@ const kr_page_styles = `
 
   /* ---------- Page header ---------- */
   .kr-page-header { margin-bottom: 1.5rem; }
+  .kr-page-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
   .kr-page-title { font-size: 1.6rem; font-weight: 700; color: var(--vb-text, #1e293b); margin-bottom: 0.15rem; }
   .kr-page-subtitle { color: var(--vb-text-muted, #64748b); margin-bottom: 0; }
 
@@ -123,6 +130,44 @@ const kr_page_styles = `
   }
   .kr-page-container .form-control::placeholder { color: var(--vb-text-muted, #94a3b8); }
   :root[data-theme='dark'] .kr-page-container .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 768px) {
+    .kr-page-header-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .kr-page-header-row .btn-primary {
+      width: 100%;
+    }
+
+    .kr-page-title { font-size: 1.3rem; }
+    .kr-page-subtitle { font-size: 0.85rem; }
+
+    .kr-page-container .card-header { padding: 0.85rem 1rem; }
+    .kr-page-container .card-body { padding: 1rem; }
+
+    .kr-page-container .table { font-size: 0.82rem; }
+    .kr-page-container .table thead th,
+    .kr-page-container .table td {
+      padding: 0.55rem 0.5rem;
+      white-space: nowrap;
+    }
+
+    .kr-badge { padding: 3px 10px; font-size: 11px; }
+    .kr-department-badge { padding: 4px 8px; font-size: 11px; }
+    .kr-action-btn-edit,
+    .kr-action-btn-delete { width: 28px; height: 28px; }
+
+    .kr-page-container .modal-dialog { margin: 0.75rem; }
+    .kr-page-container .modal-body { padding: 1rem; }
+  }
+
+  @media (max-width: 480px) {
+    .kr-page-title { font-size: 1.15rem; }
+    .btn-primary, .btn-secondary { padding: 0.5rem 0.9rem; font-size: 0.85rem; }
+  }
 `;
 
 export default function Departments() {
@@ -244,7 +289,7 @@ export default function Departments() {
 
       {/* Page Header */}
       <div className="kr-page-header">
-        <div className="d-flex justify-content-between align-items-center">
+        <div className="kr-page-header-row">
           <div>
             <h1 className="kr-page-title">Department Management</h1>
             <p className="kr-page-subtitle">Manage your organization's departments</p>

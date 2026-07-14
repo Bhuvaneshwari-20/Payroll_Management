@@ -35,25 +35,27 @@ export default function StatusHistoryTab() {
         <button className="btn btn-sm btn-success" onClick={download}><i className="fas fa-file-excel me-2"></i>Download</button>
       </div>
       <div className="card-body">
-        <table className="table table-hover">
-          <thead>
-            <tr><th>Date</th><th>Employee</th><th>Action</th><th>Prev Status</th><th>New Status</th><th>Reason</th><th>By</th></tr>
-          </thead>
-          <tbody>
-            {history.length === 0 && <tr><td colSpan="7" className="text-center">No history found</td></tr>}
-            {history.map((h, idx) => (
-              <tr key={idx}>
-                <td>{h.action_date}</td>
-                <td>{h.employee_name}<br /><small>{h.employee_code}</small></td>
-                <td><span className="badge bg-primary">{h.action_type}</span></td>
-                <td>{h.previous_status || '-'}</td>
-                <td><span className={`badge bg-${h.new_status === 'active' ? 'success' : 'danger'}`}>{h.new_status}</span></td>
-                <td>{h.reason || '-'}</td>
-                <td>{h.action_by_name || 'System'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-responsive">
+          <table className="table table-hover">
+            <thead>
+              <tr><th>Date</th><th>Employee</th><th>Action</th><th>Prev Status</th><th>New Status</th><th>Reason</th><th>By</th></tr>
+            </thead>
+            <tbody>
+              {history.length === 0 && <tr><td colSpan="7" className="text-center">No history found</td></tr>}
+              {history.map((h, idx) => (
+                <tr key={idx}>
+                  <td>{h.action_date}</td>
+                  <td>{h.employee_name}<br /><small>{h.employee_code}</small></td>
+                  <td><span className="badge bg-primary">{h.action_type}</span></td>
+                  <td>{h.previous_status || '-'}</td>
+                  <td><span className={`badge bg-${h.new_status === 'active' ? 'success' : 'danger'}`}>{h.new_status}</span></td>
+                  <td>{h.reason || '-'}</td>
+                  <td>{h.action_by_name || 'System'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
