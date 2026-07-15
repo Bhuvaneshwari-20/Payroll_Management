@@ -15,3 +15,8 @@ export const assignDateLeave = (date, leaveType, dayOfWeek) =>
   api.post('/leave-allocation/holidays/assign-date', { date, leaveType, dayOfWeek });
 export const deleteHoliday = (id, hdate) =>
   api.delete(`/leave-allocation/holidays/${id}`, { data: { hdate } });
+export const getEmployeeBalances = () => api.get('/leave-allocation/employee-balances');
+export const assignPolicy = (payload) => api.post('/leave-allocation/assign-policy', payload);
+export const resetUsed = () => api.post('/leave-allocation/reset-used');
+
+export const assignPolicyToAll = (payload) => api.post('/leave-allocation/assign-policy-all', payload);

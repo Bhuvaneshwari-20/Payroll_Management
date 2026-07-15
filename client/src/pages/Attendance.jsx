@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import attendanceService, { STATUS_OPTIONS } from '../services/attendanceService';
+import attendanceService from '../services/attendanceService';
+import { useAttendanceStatusOptions } from '../utils/useAttendanceStatusOptions';
 import AttendanceMatrixTable from '../components/attendance/AttendanceMatrixTable';
 
 // Same pattern as LeaveManagement.jsx / Departments.jsx / Roles.jsx /
@@ -86,6 +87,7 @@ function todayISO() {
 
 
 function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
+   const { statusOptions, optionLabel } = useAttendanceStatusOptions({ withBalances: true });
   const [employees, setEmployees] = useState([]);
   const [statusMap, setStatusMap] = useState({});
   const [halfDayMap, setHalfDayMap] = useState({});
@@ -226,14 +228,14 @@ function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
                     <td>
                       <select
                         className="form-select form-select-sm"
-                        value={statusMap[e.id] || 'Present'}
+                         value={statusMap[e.id] || 'P'}
                         onChange={(ev) => setStatusMap({ ...statusMap, [e.id]: ev.target.value })}
                       >
-                        {STATUS_OPTIONS.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
+                          {statusOptions.map((s) => (
+                         <option key={s.code} value={s.code}>
+                           {optionLabel(s.code, e.id)}
+                        </option>
+                       ))}
                       </select>
                     </td>
                     <td className="text-center">
@@ -311,6 +313,10 @@ function UploadAttendanceTab({ month, year, setMonth, setYear, onUploaded }) {
       setDownloading(false);
     }
   };
+  function UploadCodesHelp() {
+  const { codesHelpText } = useAttendanceStatusOptions();
+  return <p className="text-muted small mb-3">Codes: {codesHelpText}</p>;
+}
 
   return (
     <div className="card shadow-sm">
@@ -341,10 +347,7 @@ function UploadAttendanceTab({ month, year, setMonth, setYear, onUploaded }) {
           </div>
         </div>
 
-        <p className="text-muted small mb-3">
-          Codes: <strong>P</strong> Present, <strong>AB</strong> Absent, <strong>CL</strong>, <strong>SL</strong>,{' '}
-          <strong>OD</strong>, <strong>H</strong> Holiday. Add <strong>/S</strong> for half-day (e.g. OD/S).
-        </p>
+       <UploadCodesHelp />
 
         <div className="row g-3 align-items-end">
           <div className="col-auto">

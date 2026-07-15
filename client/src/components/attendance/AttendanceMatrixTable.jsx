@@ -1,22 +1,32 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import { useAttendanceStatusOptions } from '../../utils/useAttendanceStatusOptions';
 
-const CODE_STYLES = {
+// Cycle through a fixed palette so any number of dynamic leave-type
+// codes still gets a distinct, theme-safe color — no per-code hardcoding.
+ const PALETTE = [
+  { bg: '#fef9c3', color: '#854d0e' }, { bg: '#dbeafe', color: '#1e40af' },
+  { bg: '#fde68a', color: '#78350f' }, { bg: '#e0e7ff', color: '#4338ca' },   { bg: '#fce7f3', color: '#9d174d' }, { bg: '#d1fae5', color: '#065f46' },
+ ];
+const FIXED_STYLES = {
   P: { bg: '#dcfce7', color: '#166534' },
   AB: { bg: '#fee2e2', color: '#991b1b' },
-  CL: { bg: '#fef9c3', color: '#854d0e' },
-  SL: { bg: '#fde68a', color: '#78350f' },
-  OD: { bg: '#dbeafe', color: '#1e40af' },
   H: { bg: '#e5e7eb', color: '#374151' },
 };
 
-function codeStyle(code) {
-  if (!code) return {};
-  const base = code.split('/')[0];
-  return CODE_STYLES[base] || {};
-}
-
+ function useCodeStyle(leaveTypeCodes) {
+   return (code) => {
+    if (!code) return {};
+     const base = code.split('/')[0];
+     if (FIXED_STYLES[base]) return FIXED_STYLES[base];
+     const idx = leaveTypeCodes.indexOf(base);
+     return idx >= 0 ? PALETTE[idx % PALETTE.length] : {};
+   };
+ }
 export default function AttendanceMatrixTable({ data, month, year }) {
+    const { leaveTypes } = useAttendanceStatusOptions();
+   const leaveTypeCodes = useMemo(() => leaveTypes.map((lt) => lt.code), [leaveTypes]);
+   const codeStyle = useCodeStyle(leaveTypeCodes);
   const [search, setSearch] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [pageSize, setPageSize] = useState(10);
@@ -156,10 +166,10 @@ export default function AttendanceMatrixTable({ data, month, year }) {
         </div>
 
         <div className="d-flex flex-wrap gap-3 mb-3 small">
-          {Object.entries({ P: 'Present', AB: 'Absent', CL: 'Casual Leave', SL: 'Sick Leave', OD: 'On Duty', H: 'Holiday' }).map(([code, label]) => (
+        {[{ code: 'P', name: 'Present' }, { code: 'AB', name: 'Absent' }, ...leaveTypes].map(({ code, name }) => (
             <span key={code} className="d-inline-flex align-items-center gap-1">
               <span style={{ ...codeStyle(code), width: 16, height: 16, borderRadius: 3, display: 'inline-block' }} />
-              {label}
+                {name}
             </span>
           ))}
         </div>
@@ -202,11 +212,10 @@ export default function AttendanceMatrixTable({ data, month, year }) {
                   <th key={d} className="text-center" style={{ position: 'sticky', top: 0, zIndex: 2, background: '#3b82f6', minWidth: 34 }}>{d}</th>
                 ))}
                 <SortableTh label="Days" sortKey="numDays" />
-                <SortableTh label="Present" sortKey="Present" />
-                <SortableTh label="CL" sortKey="CL" />
-                <SortableTh label="OD" sortKey="OD" />
-                <SortableTh label="SL" sortKey="SL" />
-                <SortableTh label="Holiday" sortKey="Holiday" />
+           <SortableTh label="Present" sortKey="Present" />
+              {leaveTypeCodes.map((code) => (
+                 <SortableTh key={code} label={code} sortKey={code} />
+               ))}
                 <SortableTh label="Payable Days" sortKey="payableDays" />
               </tr>
             </thead>

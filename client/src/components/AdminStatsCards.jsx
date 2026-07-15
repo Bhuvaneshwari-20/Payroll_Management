@@ -84,41 +84,49 @@ function DonutChart({ present, absent }) {
   );
 }
 
-function GenderBar({ male, female }) {
+const DEPT_BAR_COLORS = [
+  'linear-gradient(90deg, #4f46e5, #6366f1)',
+  'linear-gradient(90deg, #0ea5e9, #38bdf8)',
+  'linear-gradient(90deg, #10b981, #34d399)',
+  'linear-gradient(90deg, #f59e0b, #fbbf24)',
+  'linear-gradient(90deg, #ec4899, #f472b6)',
+  'linear-gradient(90deg, #8b5cf6, #a78bfa)',
+  'linear-gradient(90deg, #14b8a6, #2dd4bf)',
+  'linear-gradient(90deg, #ef4444, #f87171)',
+];
+
+function DeptBarChart({ data }) {
   const [animated, setAnimated] = useState(false);
-  const total = male + female || 1;
-  const malePct = Math.round((male / total) * 100);
-  const femalePct = 100 - malePct;
+  const max = Math.max(1, ...data.map((d) => d.count));
 
   useEffect(() => {
     const t = setTimeout(() => setAnimated(true), 120);
     return () => clearTimeout(t);
-  }, [male, female]);
+  }, [data]);
+
+  if (!data || data.length === 0) {
+    return <div className="text-muted">No department data available</div>;
+  }
 
   return (
-    <div className="vb-gender">
-      <div className="vb-gender-bar">
-        <div
-          className="vb-gender-seg vb-gender-male"
-          style={{ width: animated ? `${malePct}%` : '0%' }}
-        />
-        <div
-          className="vb-gender-seg vb-gender-female"
-          style={{ width: animated ? `${femalePct}%` : '0%' }}
-        />
-      </div>
-      <div className="vb-gender-legend">
-        <div className="vb-gender-legend-item">
-          <span className="vb-dot vb-dot-male" />
-          <i className="fas fa-male"></i> Male
-          <strong><AnimatedNumber value={male} /></strong>
+    <div className="vb-deptbar">
+      {data.map((d, i) => (
+        <div className="vb-deptbar-row" key={d.name}>
+          <div className="vb-deptbar-label" title={d.name}>{d.name}</div>
+          <div className="vb-deptbar-track">
+            <div
+              className="vb-deptbar-fill"
+              style={{
+                width: animated ? `${(d.count / max) * 100}%` : '0%',
+                backgroundImage: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length],
+              }}
+            />
+          </div>
+          <div className="vb-deptbar-count">
+            <AnimatedNumber value={d.count} />
+          </div>
         </div>
-        <div className="vb-gender-legend-item">
-          <span className="vb-dot vb-dot-female" />
-          <i className="fas fa-female"></i> Female
-          <strong><AnimatedNumber value={female} /></strong>
-        </div>
-      </div>
+      ))}
     </div>
   );
 }
@@ -225,63 +233,54 @@ export default function AdminStatsCards() {
           letter-spacing: 0.5px;
         }
 
-        /* Gender bar */
-        .vb-gender {
-          padding: 1.3rem 0 0.4rem;
+        /* Department-wise bar chart */
+        .vb-deptbar {
+          padding: 0.5rem 0 0.2rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.9rem;
         }
 
-        .vb-gender-bar {
-          height: 14px;
+        .vb-deptbar-row {
+          display: grid;
+          grid-template-columns: 110px 1fr 36px;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .vb-deptbar-label {
+          font-size: 0.85rem;
+          color: var(--vb-text-muted, #64748b);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .vb-deptbar-track {
+          height: 12px;
           border-radius: 999px;
           overflow: hidden;
-          display: flex;
           background: var(--vb-bg-surface-2, #f8f9fc);
         }
 
-        .vb-gender-seg {
+        .vb-deptbar-fill {
           height: 100%;
+          border-radius: 999px;
           transition: width 1.1s cubic-bezier(0.2,0.7,0.3,1);
         }
 
-        .vb-gender-male {
-          background: linear-gradient(90deg, #0ea5e9, #38bdf8);
-        }
-
-        .vb-gender-female {
-          background: linear-gradient(90deg, #e8622c, #f4a26c);
-        }
-
-        .vb-gender-legend {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 1.4rem;
-          flex-wrap: wrap;
-          gap: 0.8rem;
-        }
-
-        .vb-gender-legend-item {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.85rem;
-          color: var(--vb-text-muted, #64748b);
-        }
-
-        .vb-gender-legend-item strong {
+        .vb-deptbar-count {
+          font-size: 0.9rem;
+          font-weight: 700;
           color: var(--vb-text, #1e293b);
-          font-size: 0.95rem;
-          margin-left: 0.2rem;
+          text-align: right;
         }
 
-        .vb-dot {
-          width: 9px;
-          height: 9px;
-          border-radius: 50%;
-          display: inline-block;
+        @media (max-width: 480px) {
+          .vb-deptbar-row {
+            grid-template-columns: 80px 1fr 30px;
+          }
         }
-
-        .vb-dot-male { background: #38bdf8; }
-        .vb-dot-female { background: #e8622c; }
 
         /* ── Stat card gradients ──────────────────────────────────────
            Each card gets its own 3-stop diagonal gradient, sized larger
@@ -482,8 +481,8 @@ export default function AdminStatsCards() {
         </div>
 
         <div className="vb-chart-card">
-          <div className="vb-chart-title">Workforce Gender Split</div>
-          <GenderBar male={stats.maleEmployees} female={stats.femaleEmployees} />
+          <div className="vb-chart-title">Department-wise Employee Count</div>
+          <DeptBarChart data={stats.departmentWiseCount || []} />
         </div>
       </div>
 

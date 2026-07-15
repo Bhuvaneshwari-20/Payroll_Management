@@ -572,4 +572,198 @@ UPDATE employees
 UPDATE employees
   SET force_password_change = 0
   WHERE pass REGEXP '^\\$2[aby]\\$';
- 
+
+
+  -- ============================================================
+  -- 15-07-2026
+-- Leave Management — make leave_types dynamic
+-- Your `leave_types` table already exists (from the earlier
+-- Leave Management Module migration) but `code` is a hardcoded
+-- ENUM('CL','SL','OD'), which is exactly what blocks HR from
+-- adding new leave types without a schema change. This ALTERs
+-- the existing table instead of creating a new one.
+--
+-- Run this against payroll_management. Safe to run once.
+-- ============================================================
+
+-- 1. code: ENUM('CL','SL','OD') -> free-form VARCHAR, so any code
+--    (WFH, ML, PL, MAR, CO, BL, EL, FL, ...) can be typed by HR.
+ALTER TABLE leave_types
+  MODIFY code VARCHAR(20) NOT NULL;
+
+-- 2. description, so "+ Add Leave Type" has somewhere to put it
+--    (only add if it doesn't already exist)
+ALTER TABLE leave_types
+  ADD COLUMN IF NOT EXISTS description TEXT NULL AFTER name;
+
+-- 3. Enforce one row per code now that it's no longer an ENUM
+--    (safe here — only CL/SL/OD exist today, no duplicates possible)
+ALTER TABLE leave_types
+  ADD UNIQUE KEY IF NOT EXISTS uq_leave_code (code);
+
+-- NOTE: `max_days_per_year` is left in place as-is. It's a legacy
+-- single-number cap; the new leave_policies table below is the real
+-- source of truth going forward (period + value + unit + carry-forward).
+-- Not dropping it avoids breaking anything still reading it.
+
+-- ------------------------------------------------------------
+-- leave_policies — brand new table, no conflict with anything
+-- existing. One policy row per leave type (allocation period,
+-- value, unit, carry-forward, reset cycle).
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS leave_policies (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  leave_type_id INT NOT NULL,
+  allocation_period ENUM('Monthly','Quarterly','Half Yearly','Yearly','Unlimited') NOT NULL,
+  -- DECIMAL so fractional allocations work (e.g. 1.5 days/month)
+  allocation_value DECIMAL(6,2) NOT NULL DEFAULT 0,
+  unit ENUM('Days','Hours','Times') NOT NULL DEFAULT 'Days',
+  carry_forward TINYINT(1) NOT NULL DEFAULT 0,
+  max_carry DECIMAL(6,2) NOT NULL DEFAULT 0,
+  reset_cycle ENUM('Monthly','Quarterly','Half Yearly','Yearly') NOT NULL DEFAULT 'Yearly',
+  is_paid TINYINT(1) NOT NULL DEFAULT 1,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  -- One policy per leave type — the UI always shows a single policy
+  -- form per type, so re-saving updates this row rather than creating
+  -- a second, conflicting policy.
+  UNIQUE KEY uq_leave_type (leave_type_id),
+  CONSTRAINT fk_leave_policies_leave_type
+    FOREIGN KEY (leave_type_id) REFERENCES leave_types(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seed policies for your 3 existing leave types (CL, SL, OD) so the
+-- Leave Allocation screen isn't empty. Safe defaults, edit values in
+-- the UI afterwards. Permission is intentionally NOT included here —
+-- it already has its own module (permission_requests), not a leave_type.
+INSERT INTO leave_policies (leave_type_id, allocation_period, allocation_value, unit, carry_forward, max_carry, reset_cycle, is_paid, status)
+SELECT id, 'Monthly', 1, 'Days', 1, 12, 'Yearly', 1, 'active' FROM leave_types WHERE code = 'CL'
+ON DUPLICATE KEY UPDATE allocation_value = VALUES(allocation_value);
+
+INSERT INTO leave_policies (leave_type_id, allocation_period, allocation_value, unit, carry_forward, max_carry, reset_cycle, is_paid, status)
+SELECT id, 'Monthly', 1, 'Days', 1, 12, 'Yearly', 1, 'active' FROM leave_types WHERE code = 'SL'
+ON DUPLICATE KEY UPDATE allocation_value = VALUES(allocation_value);
+
+INSERT INTO leave_policies (leave_type_id, allocation_period, allocation_value, unit, carry_forward, max_carry, reset_cycle, is_paid, status)
+SELECT id, 'Unlimited', 0, 'Days', 0, 0, 'Yearly', 1, 'active' FROM leave_types WHERE code = 'OD'
+ON DUPLICATE KEY UPDATE allocation_value = VALUES(allocation_value);
+
+-- ------------------------------------------------------------
+-- KNOWN FOLLOW-UP (not part of this migration, flagging for later):
+-- `attendance.status` is still ENUM('Present','Absent','CL','SL','OD','Holiday')
+-- and `leave_types.code` used to be ENUM-constrained to match it 1:1.
+-- Once `code` is free-form, a newly-added leave type (e.g. 'WFH') has
+-- nowhere to go in attendance until that ENUM is also loosened
+-- (VARCHAR, or an attendance.leave_type_id FK). That's Attendance-module
+-- work, separate from this leave_types/leave_policies migration.
+-- ------------------------------------------------------------
+ -- ============================================================
+-- Leave Allocation rewrite: bundle policies, per-employee
+-- assignment, per-leave-type balances, dynamic attendance status.
+-- Run once against payroll_management. Safe to re-run the CREATEs
+-- (IF NOT EXISTS) but the RENAME/ALTER steps are one-time.
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 1. Replace the old "1 policy = 1 leave type" table with a
+--    bundle model: 1 policy = many leave types (via details table)
+-- ------------------------------------------------------------
+RENAME TABLE leave_policies TO leave_policies_old_per_type;
+
+CREATE TABLE leave_policies (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  policy_name VARCHAR(100) NOT NULL,
+  description TEXT NULL,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_policy_name (policy_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE leave_policy_details (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  policy_id INT NOT NULL,
+  leave_type_id INT NOT NULL,
+  allocation_value DECIMAL(6,2) NOT NULL DEFAULT 0,
+  unit ENUM('Days','Hours','Times') NOT NULL DEFAULT 'Days',
+  allocation_period ENUM('Monthly','Quarterly','Half Yearly','Yearly','Unlimited') NOT NULL DEFAULT 'Yearly',
+  carry_forward TINYINT(1) NOT NULL DEFAULT 0,
+  max_carry DECIMAL(6,2) NOT NULL DEFAULT 0,
+  reset_cycle ENUM('Monthly','Quarterly','Half Yearly','Yearly') NOT NULL DEFAULT 'Yearly',
+  is_paid TINYINT(1) NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_policy_leavetype (policy_id, leave_type_id),
+  CONSTRAINT fk_lpd_policy FOREIGN KEY (policy_id) REFERENCES leave_policies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_lpd_leavetype FOREIGN KEY (leave_type_id) REFERENCES leave_types(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Fold the 3 old per-type rows into one starter bundle so nothing is empty.
+-- Edit / rename this in the UI afterwards — it's just a seed.
+INSERT INTO leave_policies (policy_name, description, status)
+VALUES ('Standard Policy', 'Auto-migrated from previous per-type policies', 'active');
+
+INSERT INTO leave_policy_details
+  (policy_id, leave_type_id, allocation_value, unit, allocation_period, carry_forward, max_carry, reset_cycle, is_paid)
+SELECT
+  (SELECT id FROM leave_policies WHERE policy_name = 'Standard Policy'),
+  leave_type_id, allocation_value, unit, allocation_period, carry_forward, max_carry, reset_cycle, is_paid
+FROM leave_policies_old_per_type;
+
+-- ------------------------------------------------------------
+-- 2. Which policy an employee is on (per-employee assignment)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS employee_leave_policy (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  employee_id INT NOT NULL,
+  policy_id INT NOT NULL,
+  effective_from DATE NOT NULL,
+  effective_to DATE NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (employee_id) REFERENCES employees(id),
+  FOREIGN KEY (policy_id) REFERENCES leave_policies(id),
+  INDEX idx_emp_active (employee_id, effective_to)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ------------------------------------------------------------
+-- 3. Per-employee, per-leave-type balance.
+--    Replaces the pooled employees.leave_balance number.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS employee_leave_balance (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  employee_id INT NOT NULL,
+  leave_type_id INT NOT NULL,
+  allocated DECIMAL(6,2) NOT NULL DEFAULT 0,
+  used DECIMAL(6,2) NOT NULL DEFAULT 0,
+  carry_forward DECIMAL(6,2) NOT NULL DEFAULT 0,
+  last_reset_date DATE NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_emp_leavetype (employee_id, leave_type_id),
+  FOREIGN KEY (employee_id) REFERENCES employees(id),
+  FOREIGN KEY (leave_type_id) REFERENCES leave_types(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- NOTE on employees.leave_balance: it's left in place (not dropped) since
+-- it's a pooled CL+SL number with no clean way to split retroactively into
+-- per-type balances. Old value becomes historical/unused once HR re-assigns
+-- policies through the new Leave Allocation screen, which populates
+-- employee_leave_balance fresh (starting at 0 used). Drop the column
+-- yourself once you've confirmed nothing else reads it:
+--   ALTER TABLE employees DROP COLUMN leave_balance;
+
+-- ------------------------------------------------------------
+-- 4. Make attendance.status dynamic instead of a fixed ENUM,
+--    so any leave_types.code (not just CL/SL/OD) can be stamped here.
+-- ------------------------------------------------------------
+ALTER TABLE attendance
+  MODIFY status VARCHAR(20) NOT NULL;
+
+ALTER TABLE attendance
+  ADD COLUMN leave_type_id INT NULL AFTER status,
+  ADD CONSTRAINT fk_attendance_leavetype FOREIGN KEY (leave_type_id) REFERENCES leave_types(id);
+
+-- Backfill leave_type_id for existing CL/SL/OD attendance rows
+UPDATE attendance a
+JOIN leave_types lt ON lt.code = a.status
+SET a.leave_type_id = lt.id
+WHERE a.status IN ('CL', 'SL', 'OD');

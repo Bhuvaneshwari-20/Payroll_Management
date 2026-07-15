@@ -18,6 +18,9 @@ import PayslipGenerator from './pages/PayslipGenerator';
 import MyPayslips from './pages/MyPayslips';
 import PasswordReset from './pages/PasswordReset';
 import AttendanceReport from './pages/AttendanceReport';
+import LeaveTypes from './pages/LeaveTypes';
+import LeavePolicies from './pages/LeavePolicies';
+
 
 export default function App() {
   return (
@@ -44,11 +47,31 @@ export default function App() {
         <Route path="/manager-leave-management" element={<ManagerLeaveManagement />} />
 
         {/* HR/Admin only -- org-wide view, final approve/reject */}
+        {/* HR/Admin only */}
         <Route path="/LeaveManagement" element={<AdminLeaveManagement />} />
+
         <Route path="/leave-allocation" element={<LeaveAllocation />} />
 
+        <Route
+          path="/leave-types"
+          element={
+            <RoleProtectedRoute allowedRoles={['admin', 'hr']}>
+              <LeaveTypes />
+            </RoleProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/leave-policies"
+          element={
+            <RoleProtectedRoute allowedRoles={['admin', 'hr']}>
+              <LeavePolicies />
+            </RoleProtectedRoute>
+          }
+        />
+
         {/* Still pending conversion -- Phase 2 */}
-      <Route path="attendance/report" element={<RoleProtectedRoute allowedRoles={['hr','manager','employee']}><AttendanceReport /></RoleProtectedRoute>} />
+        <Route path="attendance/report" element={<RoleProtectedRoute allowedRoles={['hr', 'manager', 'employee']}><AttendanceReport /></RoleProtectedRoute>} />
         <Route path="/salary-report" element={<SalaryReport />} />
 
         <Route

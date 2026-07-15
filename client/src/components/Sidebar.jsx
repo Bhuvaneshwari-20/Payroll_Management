@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logov from '../assets/images/logov.png';
 
@@ -8,6 +9,11 @@ import logov from '../assets/images/logov.png';
 // Uses the shared --vb-* theme variables (defined in Topbar.jsx) so the
 // sidebar always matches the Topbar/Dashboard surface color exactly,
 // in both light and dark mode.
+//
+// Leave Types / Leave Policy / Leave Allocation were three separate
+// top-level links; they're now nested under one expandable "Leave
+// Allocation" parent, since they're really one workflow (define types ->
+// bundle into policies -> assign to employees).
 // ---------------------------------------------------------------------------
 
 const adminLinks = [
@@ -19,7 +25,15 @@ const adminLinks = [
   { to: '/attendance', icon: 'fa-calendar-check', label: 'Attendance' },
   { to: '/attendance/report', icon: 'fa-clock', label: 'Attendance Report' },
   { to: '/salary-report', icon: 'fa-money-bill', label: 'Salary Report' },
-  { to: '/leave-allocation', icon: 'fa-tasks', label: 'Leave Allocation' },
+  {
+    icon: 'fa-tasks',
+    label: 'Leave Allocation',
+    children: [
+      { to: '/leave-types', icon: 'fa-calendar-alt', label: 'Leave Types' },
+      { to: '/leave-policies', icon: 'fa-sliders-h', label: 'Leave Policies' },
+      { to: '/leave-allocation', icon: 'fa-user-check', label: 'Employee Leave Allocation' },
+    ],
+  },
   { to: '/payslip-generator', icon: 'fa-file-invoice-dollar', label: 'Payslip Generator' },
   { to: '/employee-passwords', icon: 'fa-key', label: 'Employee Password Management' },
 ];
@@ -27,13 +41,9 @@ const adminLinks = [
 function employeeLinks(isManager) {
   const base = [
     { to: '/dashboard', icon: 'fa-tachometer-alt', label: 'Dashboard' },
-    // Manager sees "HR Wallet" (their own leave apply); plain employee sees "My Wallet"
     { to: '/my-wallet', icon: 'fa-wallet', label: isManager ? 'HR Wallet' : 'My Wallet' },
     { to: '/payslip', icon: 'fa-file-invoice-dollar', label: 'My Payslips' },
   ];
-  // Manager status comes from `managers` table via user.isManager
-  // (set by backend on login/me) — NOT from user.role, since role
-  // for employees is just a numeric role_id (their job title).
   if (isManager) {
     base.push({ to: '/manager-leave-management', icon: 'fa-calendar', label: 'Leave Management' });
   }
@@ -42,15 +52,22 @@ function employeeLinks(isManager) {
 
 export default function Sidebar({ isOpen = false, onClose = () => {} }) {
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const isHR = user?.role === 'HR';
 
   const links = isHR ? adminLinks : employeeLinks(!!user?.isManager);
 
+  // Auto-expand the Leave Allocation group if the current route is one of
+  // its children, so a page refresh on /leave-types still shows it open.
+  const [openGroup, setOpenGroup] = useState(() => {
+    const group = adminLinks.find((l) => l.children?.some((c) => c.to === pathname));
+    return group ? group.label : null;
+  });
+
+  const toggleGroup = (label) => setOpenGroup((prev) => (prev === label ? null : label));
+
   return (
     <>
-      {/* backdrop, mobile only — purely a visual dim behind the open
-          drawer now. It no longer closes the sidebar on tap; only the
-          hamburger button in the Topbar (onToggleSidebar) does that. */}
       <div
         className={'kr-sidebar-backdrop' + (isOpen ? ' show' : '')}
         aria-hidden="true"
@@ -64,12 +81,13 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
           border-right: 1px solid var(--vb-border, #e6e8ec);
           display: flex;
           flex-direction: column;
-          position: relative;
+          position: sticky;
+          top: 0;
+          align-self: flex-start;
           overflow: hidden;
           transition: background 0.3s ease, border-color 0.3s ease;
         }
 
-        /* faint ledger-grid texture, echoes the login page — subtle in both themes */
         .kr-sidebar::before {
           content: '';
           position: absolute;
@@ -154,6 +172,11 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
           transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
           animation: krItemIn 0.45s ease both;
           animation-delay: calc(var(--i, 0) * 0.045s);
+          background: none;
+          border: none;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
         }
 
         @keyframes krItemIn {
@@ -161,7 +184,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
           to { opacity: 1; transform: translateX(0); }
         }
 
-        .kr-nav-item i {
+        .kr-nav-item i.kr-nav-icon {
           width: 18px;
           text-align: center;
           font-size: 0.95rem;
@@ -169,7 +192,6 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
           transition: transform 0.25s ease;
         }
 
-        /* animated fill sweeping in from the left on hover */
         .kr-nav-item::before {
           content: '';
           position: absolute;
@@ -191,7 +213,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
           transform: scaleX(1);
         }
 
-        .kr-nav-item:hover i {
+        .kr-nav-item:hover i.kr-nav-icon {
           transform: scale(1.12);
         }
 
@@ -220,13 +242,62 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
           to { height: 60%; }
         }
 
-        .kr-nav-item.active i {
+        .kr-nav-item.active i.kr-nav-icon {
           color: #e8622c;
         }
 
-        /* -------------------------------------------------------------
-           Responsive — off-canvas drawer on tablet/mobile
-        ------------------------------------------------------------- */
+        .kr-nav-group-toggle {
+          justify-content: space-between;
+        }
+
+        .kr-nav-group-label {
+          display: flex;
+          align-items: center;
+          gap: 0.85rem;
+        }
+
+        .kr-nav-chevron {
+          font-size: 0.75rem;
+          transition: transform 0.2s ease;
+          flex-shrink: 0;
+        }
+
+        .kr-nav-chevron.open {
+          transform: rotate(90deg);
+        }
+
+        .kr-nav-group-toggle.has-active-child {
+          color: var(--vb-text, #1e293b);
+          font-weight: 600;
+        }
+
+        .kr-nav-group-toggle.has-active-child i.kr-nav-icon {
+          color: #e8622c;
+        }
+
+        .kr-nav-submenu {
+          display: flex;
+          flex-direction: column;
+          gap: 0.15rem;
+          padding-left: 1.7rem;
+          overflow: hidden;
+          max-height: 0;
+          transition: max-height 0.25s ease;
+        }
+
+        .kr-nav-submenu.open {
+          max-height: 260px;
+        }
+
+        .kr-nav-subitem {
+          font-size: 0.82rem;
+          padding: 0.6rem 0.85rem;
+        }
+
+        .kr-nav-subitem i.kr-nav-icon {
+          font-size: 0.82rem;
+        }
+
         .kr-sidebar-backdrop {
           display: none;
         }
@@ -283,17 +354,56 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
       </div>
 
       <div className="kr-nav">
-        {links.map((link, i) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            style={{ '--i': i }}
-            className={({ isActive }) => 'kr-nav-item' + (isActive ? ' active' : '')}
-          >
-            <i className={`fas ${link.icon}`}></i>
-            <span>{link.label}</span>
-          </NavLink>
-        ))}
+        {links.map((link, i) => {
+          if (link.children) {
+            const isOpen = openGroup === link.label;
+            const hasActiveChild = link.children.some((c) => c.to === pathname);
+            return (
+              <div key={link.label} style={{ '--i': i }}>
+                <button
+                  type="button"
+                  className={
+                    'kr-nav-item kr-nav-group-toggle' +
+                    (hasActiveChild ? ' has-active-child' : '')
+                  }
+                  onClick={() => toggleGroup(link.label)}
+                >
+                  <span className="kr-nav-group-label">
+                    <i className={`fas ${link.icon} kr-nav-icon`}></i>
+                    <span>{link.label}</span>
+                  </span>
+                  <i className={`fas fa-chevron-right kr-nav-chevron${isOpen ? ' open' : ''}`}></i>
+                </button>
+                <div className={`kr-nav-submenu${isOpen ? ' open' : ''}`}>
+                  {link.children.map((child) => (
+                    <NavLink
+                      key={child.to}
+                      to={child.to}
+                      className={({ isActive }) =>
+                        'kr-nav-item kr-nav-subitem' + (isActive ? ' active' : '')
+                      }
+                    >
+                      <i className={`fas ${child.icon} kr-nav-icon`}></i>
+                      <span>{child.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              style={{ '--i': i }}
+              className={({ isActive }) => 'kr-nav-item' + (isActive ? ' active' : '')}
+            >
+              <i className={`fas ${link.icon} kr-nav-icon`}></i>
+              <span>{link.label}</span>
+            </NavLink>
+          );
+        })}
       </div>
       </div>
     </>
