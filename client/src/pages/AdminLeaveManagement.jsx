@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { getAllForHR, getHRStats, hrAction } from '../services/leaveApi';
 import { getAllPermissionsForAdmin, permissionHrAction, getPermissionHRStats } from '../services/permissionApi';
 import LeaveStatusBadge from '../components/leave/LeaveStatusBadge';
+import DataTable from '../components/common/DataTable';
 
 // ---------------------------------------------------------------------------
 // Vertex Bank — Admin Leave Management ("Request Management")
@@ -419,32 +420,35 @@ export default function AdminLeaveManagement() {
           </ul>
 
           <div className="table-responsive">
-            <table className="table table-hover">
-              <thead>
-                <tr>
-                  <th>S.No</th><th>ID</th><th>Employee</th>
-                  {tab === 'permission' ? <><th>From</th><th>To</th></> : <><th>Type</th><th>Start</th><th>End</th><th>Days</th></>}
-                  <th>Status</th><th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={r.id} style={{ animationDelay: `${Math.min(i, 12) * 0.03}s` }}>
-                    <td>{i + 1}</td>
-                    <td>{r.employee_code}</td>
-                    <td>{r.employee_name}</td>
-                    {tab === 'permission' ? (
-                      <><td>{r.from_time}</td><td>{r.to_time}</td></>
-                    ) : (
-                      <><td>{r.leave_type_name}</td><td>{r.start_date}</td><td>{r.end_date}</td><td>{r.days}</td></>
-                    )}
-                    <td><LeaveStatusBadge status={r.status} isLop={!!r.is_lop} /></td>
-                    <td>{renderActions(r)}</td>
-                  </tr>
-                ))}
-                {rows.length === 0 && <tr><td colSpan="8" className="text-center">No requests found</td></tr>}
-              </tbody>
-            </table>
+            <DataTable
+              data={rows}
+              rowKey={(r) => r.id}
+              searchPlaceholder="Search by ID or Employee..."
+              emptyMessage="No requests found"
+              columns={[
+                { key: 'employee_code', label: 'ID' },
+                { key: 'employee_name', label: 'Employee' },
+                ...(tab === 'permission'
+                  ? [
+                      { key: 'from_time', label: 'From' },
+                      { key: 'to_time', label: 'To' },
+                    ]
+                  : [
+                      { key: 'leave_type_name', label: 'Type' },
+                      { key: 'start_date', label: 'Start' },
+                      { key: 'end_date', label: 'End' },
+                      { key: 'days', label: 'Days' },
+                    ]),
+                {
+                  key: 'status', label: 'Status',
+                  render: (r) => <LeaveStatusBadge status={r.status} isLop={!!r.is_lop} />,
+                },
+                {
+                  key: 'actions', label: 'Actions', sortable: false,
+                  render: (r) => renderActions(r),
+                },
+              ]}
+            />
           </div>
         </div>
       </div>

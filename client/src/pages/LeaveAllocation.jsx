@@ -4,6 +4,7 @@ import { getEmployeeBalances, assignPolicy, assignPolicyToAll, resetUsed } from 
 import employeeService from '../services/employeeService';
 import { fetchLeavePolicies } from '../services/leavePolicyService';
 import HolidayCalendar from './HolidayCalendar';
+import DataTable from '../components/common/DataTable';
 
 const leave_allocation_styles = `
   .kr-page-container .ha-btn-toggle {
@@ -110,6 +111,27 @@ export default function LeaveAllocation() {
     });
     return { leaveTypeCodes: codes, pivoted: [...byEmployee.values()] };
   }, [rows]);
+
+  const balanceColumns = useMemo(() => [
+    { key: 'employee_code', label: 'Code' },
+    { key: 'name', label: 'Name' },
+    { key: 'jtype', label: 'Type' },
+    {
+      key: 'policy_name',
+      label: 'Policy',
+      render: (row) => (
+        row.policy_name
+          ? <span className="kr-policy-pill">{row.policy_name}</span>
+          : <span className="text-muted">Not assigned</span>
+      ),
+    },
+    ...leaveTypeCodes.map((code) => ({
+      key: code,
+      label: code,
+      accessor: (row) => row.balances[code] ?? '',
+      render: (row) => row.balances[code] ?? '-',
+    })),
+  ], [leaveTypeCodes]);
 
   const handleAssignSubmit = async (e) => {
     e.preventDefault();
@@ -329,39 +351,13 @@ export default function LeaveAllocation() {
           </div>
           <div className="card-body">
             <div className="table-responsive">
-              <table className="table table-striped table-hover">
-                <thead>
-                  <tr>
-                    <th>S.No</th>
-                    <th>Code</th>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Policy</th>
-                    {leaveTypeCodes.map((code) => <th key={code}>{code}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {pivoted.map((row, i) => (
-                    <tr key={row.employee_id}>
-                      <td>{i + 1}</td>
-                      <td>{row.employee_code}</td>
-                      <td>{row.name}</td>
-                      <td>{row.jtype}</td>
-                      <td>
-                        {row.policy_name
-                          ? <span className="kr-policy-pill">{row.policy_name}</span>
-                          : <span className="text-muted">Not assigned</span>}
-                      </td>
-                      {leaveTypeCodes.map((code) => (
-                        <td key={code}>{row.balances[code] ?? '-'}</td>
-                      ))}
-                    </tr>
-                  ))}
-                  {pivoted.length === 0 && (
-                    <tr><td colSpan={5 + leaveTypeCodes.length} className="text-center">No employees with an assigned policy yet</td></tr>
-                  )}
-                </tbody>
-              </table>
+              <DataTable
+                data={pivoted}
+                columns={balanceColumns}
+                rowKey={(row) => row.employee_id}
+                searchPlaceholder="Search by code, name, or type..."
+                emptyMessage="No employees with an assigned policy yet"
+              />
             </div>
           </div>
         </div>

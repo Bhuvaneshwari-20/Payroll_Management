@@ -7,9 +7,9 @@ import {
   updateDepartment,
   deleteDepartment,
 } from '../services/departmentService';
+import DataTable from '../components/common/DataTable';
 
 const EMPTY_FORM = { name: '', description: '', status: 'active' };
-
 
 const kr_page_styles = `
   /* ---------- Breadcrumb ---------- */
@@ -97,14 +97,43 @@ const kr_page_styles = `
   .kr-badge-active { background: #dcfce7; color: #15803d; }
   .kr-badge-inactive { background: #fee2e2; color: #b91c1c; }
 
-  /* ---------- Department badge (Roles table) ---------- */
-  .kr-department-badge { background: #eef1ff; color: #4338ca; font-weight: 600; padding: 5px 10px; }
-
   /* ---------- Action buttons ---------- */
   .kr-action-btn-edit { background: #e0e7ff; color: #4338ca; border: none; border-radius: 6px; width: 32px; height: 32px; }
   .kr-action-btn-edit:hover { background: #c7d2fe; }
   .kr-action-btn-delete { background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; width: 32px; height: 32px; }
   .kr-action-btn-delete:hover { background: #fecaca; }
+
+  /* ---------- DataTable sort icons ---------- */
+  .kr-page-container .table thead th { cursor: pointer; user-select: none; white-space: nowrap; }
+  .kr-page-container .table thead th:hover { background: var(--vb-bg-surface-2, #f8f9fc); }
+
+  /* ---------- DataTable controls theme fix ---------- */
+  .kr-page-container .form-select,
+  .kr-page-container .form-control {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #ced4da);
+  }
+  .kr-page-container .form-select:focus,
+  .kr-page-container .form-control:focus {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .form-control::placeholder { color: var(--vb-text-muted, #94a3b8); }
+  .kr-page-container .pagination .page-link {
+    background: var(--vb-bg-surface, #fff);
+    border-color: var(--vb-border, #dee2e6);
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .pagination .page-item.active .page-link {
+    background: #a4133c;
+    border-color: #a4133c;
+    color: #fff;
+  }
+  .kr-page-container .pagination .page-item.disabled .page-link {
+    background: var(--vb-bg-surface-2, #f8f9fa);
+    color: var(--vb-text-muted, #6c757d);
+  }
 
   /* ---------- Modal ---------- */
   .kr-page-container .modal-content {
@@ -117,53 +146,25 @@ const kr_page_styles = `
   }
   .kr-page-container .modal-title { color: var(--vb-text, #1e293b); }
   .kr-page-container .form-label { color: var(--vb-text, #1e293b); }
-  .kr-page-container .form-control,
-  .kr-page-container .form-select {
-    background: var(--vb-bg-surface-2, #fff);
-    color: var(--vb-text, #1e293b);
-    border: 1px solid var(--vb-border, #ced4da);
-  }
-  .kr-page-container .form-control:focus,
-  .kr-page-container .form-select:focus {
-    background: var(--vb-bg-surface-2, #fff);
-    color: var(--vb-text, #1e293b);
-  }
-  .kr-page-container .form-control::placeholder { color: var(--vb-text-muted, #94a3b8); }
   :root[data-theme='dark'] .kr-page-container .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
 
   /* ---------- Responsive ---------- */
   @media (max-width: 768px) {
-    .kr-page-header-row {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .kr-page-header-row .btn-primary {
-      width: 100%;
-    }
-
+    .kr-page-header-row { flex-direction: column; align-items: stretch; }
+    .kr-page-header-row .btn-primary { width: 100%; }
     .kr-page-title { font-size: 1.3rem; }
     .kr-page-subtitle { font-size: 0.85rem; }
-
     .kr-page-container .card-header { padding: 0.85rem 1rem; }
     .kr-page-container .card-body { padding: 1rem; }
-
     .kr-page-container .table { font-size: 0.82rem; }
     .kr-page-container .table thead th,
-    .kr-page-container .table td {
-      padding: 0.55rem 0.5rem;
-      white-space: nowrap;
-    }
-
+    .kr-page-container .table td { padding: 0.55rem 0.5rem; white-space: nowrap; }
     .kr-badge { padding: 3px 10px; font-size: 11px; }
-    .kr-department-badge { padding: 4px 8px; font-size: 11px; }
     .kr-action-btn-edit,
     .kr-action-btn-delete { width: 28px; height: 28px; }
-
     .kr-page-container .modal-dialog { margin: 0.75rem; }
     .kr-page-container .modal-body { padding: 1rem; }
   }
-
   @media (max-width: 480px) {
     .kr-page-title { font-size: 1.15rem; }
     .btn-primary, .btn-secondary { padding: 0.5rem 0.9rem; font-size: 0.85rem; }
@@ -177,18 +178,13 @@ export default function Departments() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    loadDepartments();
-  }, []);
+  useEffect(() => { loadDepartments(); }, []);
 
   async function loadDepartments() {
     try {
       const res = await fetchDepartments();
-      if (res.success) {
-        setDepartments(res.data || []);
-      } else {
-        Swal.fire('Error', res.message, 'error');
-      }
+      if (res.success) setDepartments(res.data || []);
+      else Swal.fire('Error', res.message, 'error');
     } catch {
       Swal.fire('Error', 'Failed to load departments', 'error');
     }
@@ -235,12 +231,10 @@ export default function Departments() {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!validate()) return;
-
     try {
       const res = editingId
         ? await updateDepartment(editingId, form)
         : await createDepartment(form);
-
       if (res.success) {
         Swal.fire({ icon: 'success', title: 'Success', text: res.message, timer: 1800, showConfirmButton: false });
         closeModal();
@@ -261,7 +255,6 @@ export default function Departments() {
       confirmButtonText: 'Yes, delete it!',
     });
     if (!result.isConfirmed) return;
-
     try {
       const res = await deleteDepartment(id);
       if (res.success) {
@@ -275,17 +268,69 @@ export default function Departments() {
     }
   }
 
+  // DataTable column definitions
+  const columns = [
+    {
+      key: 'index',
+      label: 'S.No',
+      sortable: false,
+      render: (row) => row.__index,
+    },
+    {
+      key: 'name',
+      label: 'Department Name',
+      render: (row) => <div className="fw-bold">{row.name}</div>,
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      render: (row) => row.description || '-',
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (row) =>
+        row.status === 'active'
+          ? <span className="kr-badge kr-badge-active">Active</span>
+          : <span className="kr-badge kr-badge-inactive">Inactive</span>,
+    },
+    {
+      key: 'created_at',
+      label: 'Created Date',
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (row) => (
+        <div className="d-flex gap-2">
+          <button
+            className="btn btn-sm kr-action-btn-edit"
+            title="Edit"
+            onClick={() => openEditModal(row.id)}
+          >
+            <i className="fas fa-edit"></i>
+          </button>
+          <button
+            className="btn btn-sm kr-action-btn-delete"
+            title="Delete"
+            onClick={() => handleDelete(row.id)}
+          >
+            <i className="fas fa-trash"></i>
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  // Inject a running serial number so the # column works correctly
+  // across pages (DataTable slices the data internally, so we pre-index
+  // the full array here; DataTable renders only the visible slice).
+  const indexedDepartments = departments.map((d, i) => ({ ...d, __index: i + 1 }));
+
   return (
     <div className="kr-page-container">
       <style>{kr_page_styles}</style>
-
-      {/* Breadcrumb */}
-      {/* <nav aria-label="breadcrumb" className="kr-breadcrumb">
-        <ol className="breadcrumb">
-          <li className="breadcrumb-item"><a href="#/dashboard"><i className="fas fa-home"></i></a></li>
-          <li className="breadcrumb-item active">Department Management</li>
-        </ol>
-      </nav> */}
 
       {/* Page Header */}
       <div className="kr-page-header">
@@ -306,50 +351,14 @@ export default function Departments() {
           <h5 className="mb-0"><i className="fas fa-building me-2"></i>Departments</h5>
         </div>
         <div className="card-body">
-          <div className="table-responsive">
-            <table className="table" id="departmentsTable">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Department Name</th>
-                  <th>Description</th>
-                  <th>Status</th>
-                  <th>Created Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {departments.map((dept, index) => (
-                  <tr key={dept.id}>
-                    <td>{index + 1}</td>
-                    <td><div className="fw-bold">{dept.name}</div></td>
-                    <td>{dept.description || '-'}</td>
-                    <td>
-                      {dept.status === 'active' ? (
-                        <span className="kr-badge kr-badge-active">Active</span>
-                      ) : (
-                        <span className="kr-badge kr-badge-inactive">Inactive</span>
-                      )}
-                    </td>
-                    <td>{dept.created_at}</td>
-                    <td>
-                     <div className="d-flex gap-2">
-                      <button className="btn btn-sm kr-action-btn-edit" title="Edit" onClick={() => openEditModal(dept.id)}>
-                        <i className="fas fa-edit"></i>
-                      </button>
-                      <button className="btn btn-sm kr-action-btn-delete" title="Delete" onClick={() => handleDelete(dept.id)}>
-                        <i className="fas fa-trash"></i>
-                      </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {departments.length === 0 && (
-                  <tr><td colSpan="6" className="text-center text-muted">No departments found</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={columns}
+            data={indexedDepartments}
+            defaultPageSize={10}
+            searchPlaceholder="Search departments…"
+            emptyMessage="No departments found"
+            rowKey={(row) => row.id}
+          />
         </div>
       </div>
 

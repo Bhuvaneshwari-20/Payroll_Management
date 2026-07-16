@@ -2,16 +2,10 @@ import { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 import { fetchRoles, fetchRole, createRole, updateRole, deleteRole } from '../services/roleService';
 import { fetchDepartments } from '../services/departmentService';
+import DataTable from '../components/common/DataTable';
 
 const EMPTY_FORM = { name: '', department_id: '', description: '', status: 'active' };
 
-// ---------------------------------------------------------------------------
-// Styles were previously in a separate Departments.css (shared with
-// Departments.jsx) with hardcoded light-mode colors, so the card/table/modal
-// text stayed dark on a dark background whenever dark mode was on. Now
-// embedded here, using the --vb-* theme variables (defined in Topbar.jsx) so
-// everything follows the active theme, same pattern as Dashboard.jsx.
-// ---------------------------------------------------------------------------
 const kr_page_styles = `
   /* ---------- Breadcrumb ---------- */
   .kr-breadcrumb { margin-bottom: 1rem; }
@@ -107,6 +101,38 @@ const kr_page_styles = `
   .kr-action-btn-delete { background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; width: 32px; height: 32px; }
   .kr-action-btn-delete:hover { background: #fecaca; }
 
+  /* ---------- DataTable sort icons ---------- */
+  .kr-page-container .table thead th { cursor: pointer; user-select: none; white-space: nowrap; }
+  .kr-page-container .table thead th:hover { background: var(--vb-bg-surface-2, #f8f9fc); }
+
+  /* ---------- DataTable controls theme fix ---------- */
+  .kr-page-container .form-select,
+  .kr-page-container .form-control {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+    border: 1px solid var(--vb-border, #ced4da);
+  }
+  .kr-page-container .form-select:focus,
+  .kr-page-container .form-control:focus {
+    background: var(--vb-bg-surface-2, #fff);
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .form-control::placeholder { color: var(--vb-text-muted, #94a3b8); }
+  .kr-page-container .pagination .page-link {
+    background: var(--vb-bg-surface, #fff);
+    border-color: var(--vb-border, #dee2e6);
+    color: var(--vb-text, #1e293b);
+  }
+  .kr-page-container .pagination .page-item.active .page-link {
+    background: #a4133c;
+    border-color: #a4133c;
+    color: #fff;
+  }
+  .kr-page-container .pagination .page-item.disabled .page-link {
+    background: var(--vb-bg-surface-2, #f8f9fa);
+    color: var(--vb-text-muted, #6c757d);
+  }
+
   /* ---------- Modal ---------- */
   .kr-page-container .modal-content {
     background: var(--vb-bg-surface, #fff);
@@ -118,53 +144,26 @@ const kr_page_styles = `
   }
   .kr-page-container .modal-title { color: var(--vb-text, #1e293b); }
   .kr-page-container .form-label { color: var(--vb-text, #1e293b); }
-  .kr-page-container .form-control,
-  .kr-page-container .form-select {
-    background: var(--vb-bg-surface-2, #fff);
-    color: var(--vb-text, #1e293b);
-    border: 1px solid var(--vb-border, #ced4da);
-  }
-  .kr-page-container .form-control:focus,
-  .kr-page-container .form-select:focus {
-    background: var(--vb-bg-surface-2, #fff);
-    color: var(--vb-text, #1e293b);
-  }
-  .kr-page-container .form-control::placeholder { color: var(--vb-text-muted, #94a3b8); }
   :root[data-theme='dark'] .kr-page-container .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
 
   /* ---------- Responsive ---------- */
   @media (max-width: 768px) {
-    .kr-page-header-row {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .kr-page-header-row .btn-primary {
-      width: 100%;
-    }
-
+    .kr-page-header-row { flex-direction: column; align-items: stretch; }
+    .kr-page-header-row .btn-primary { width: 100%; }
     .kr-page-title { font-size: 1.3rem; }
     .kr-page-subtitle { font-size: 0.85rem; }
-
     .kr-page-container .card-header { padding: 0.85rem 1rem; }
     .kr-page-container .card-body { padding: 1rem; }
-
     .kr-page-container .table { font-size: 0.82rem; }
     .kr-page-container .table thead th,
-    .kr-page-container .table td {
-      padding: 0.55rem 0.5rem;
-      white-space: nowrap;
-    }
-
+    .kr-page-container .table td { padding: 0.55rem 0.5rem; white-space: nowrap; }
     .kr-badge { padding: 3px 10px; font-size: 11px; }
     .kr-department-badge { padding: 4px 8px; font-size: 11px; }
     .kr-action-btn-edit,
     .kr-action-btn-delete { width: 28px; height: 28px; }
-
     .kr-page-container .modal-dialog { margin: 0.75rem; }
     .kr-page-container .modal-body { padding: 1rem; }
   }
-
   @media (max-width: 480px) {
     .kr-page-title { font-size: 1.15rem; }
     .btn-primary, .btn-secondary { padding: 0.5rem 0.9rem; font-size: 0.85rem; }
@@ -187,11 +186,8 @@ export default function Roles() {
   async function loadRoles() {
     try {
       const res = await fetchRoles();
-      if (res.success) {
-        setRoles(res.data || []);
-      } else {
-        Swal.fire('Error', res.message, 'error');
-      }
+      if (res.success) setRoles(res.data || []);
+      else Swal.fire('Error', res.message, 'error');
     } catch {
       Swal.fire('Error', 'Failed to load roles', 'error');
     }
@@ -201,9 +197,7 @@ export default function Roles() {
     try {
       const res = await fetchDepartments();
       if (res.success) setDepartments(res.data || []);
-    } catch {
-      /* silent — same as PHP, select just stays empty */
-    }
+    } catch { /* silent */ }
   }
 
   function openAddModal() {
@@ -219,12 +213,7 @@ export default function Roles() {
       if (res.success) {
         const r = res.data;
         setEditingId(r.id);
-        setForm({
-          name: r.name,
-          department_id: r.department_id || '',
-          description: r.description || '',
-          status: r.status,
-        });
+        setForm({ name: r.name, department_id: r.department_id || '', description: r.description || '', status: r.status });
         setErrors({});
         setShowModal(true);
       } else {
@@ -253,10 +242,8 @@ export default function Roles() {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!validate()) return;
-
     try {
       const res = editingId ? await updateRole(editingId, form) : await createRole(form);
-
       if (res.success) {
         Swal.fire({ icon: 'success', title: 'Success', text: res.message, timer: 1800, showConfirmButton: false });
         closeModal();
@@ -277,7 +264,6 @@ export default function Roles() {
       confirmButtonText: 'Yes, delete it!',
     });
     if (!result.isConfirmed) return;
-
     try {
       const res = await deleteRole(id);
       if (res.success) {
@@ -291,17 +277,72 @@ export default function Roles() {
     }
   }
 
+  // DataTable column definitions
+  const columns = [
+    {
+      key: 'index',
+      label: 'S.No',
+      sortable: false,
+      render: (row) => row.__index,
+    },
+    {
+      key: 'name',
+      label: 'Role Name',
+      render: (row) => <div className="fw-bold">{row.name}</div>,
+    },
+    {
+      key: 'department_name',
+      label: 'Department',
+      render: (row) => (
+        <span className="badge kr-department-badge">{row.department_name}</span>
+      ),
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      render: (row) => row.description || '-',
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (row) =>
+        row.status === 'active'
+          ? <span className="kr-badge kr-badge-active">Active</span>
+          : <span className="kr-badge kr-badge-inactive">Inactive</span>,
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (row) => (
+        <div className="d-flex gap-2">
+          <button
+            className="btn btn-sm kr-action-btn-edit"
+            title="Edit"
+            onClick={() => openEditModal(row.id)}
+          >
+            <i className="fas fa-edit"></i>
+          </button>
+          <button
+            className="btn btn-sm kr-action-btn-delete"
+            title="Delete"
+            onClick={() => handleDelete(row.id)}
+          >
+            <i className="fas fa-trash"></i>
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  // Pre-index for the serial # column (same pattern as Departments)
+  const indexedRoles = roles.map((r, i) => ({ ...r, __index: i + 1 }));
+
   return (
     <div className="kr-page-container">
       <style>{kr_page_styles}</style>
 
-      {/* <nav aria-label="breadcrumb" className="kr-breadcrumb">
-        <ol className="breadcrumb">
-          <li className="breadcrumb-item"><a href="#/dashboard"><i className="fas fa-home"></i></a></li>
-          <li className="breadcrumb-item active">Role Management</li>
-        </ol>
-      </nav> */}
-
+      {/* Page Header */}
       <div className="kr-page-header">
         <div className="kr-page-header-row">
           <div>
@@ -314,56 +355,24 @@ export default function Roles() {
         </div>
       </div>
 
+      {/* Roles List Card */}
       <div className="card">
         <div className="card-header">
           <h5 className="mb-0"><i className="fas fa-user-tag me-2"></i>Roles</h5>
         </div>
         <div className="card-body">
-          <div className="table-responsive">
-            <table className="table" id="rolesTable">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Role Name</th>
-                  <th>Department</th>
-                  <th>Description</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roles.map((role, index) => (
-                  <tr key={role.id}>
-                    <td>{index + 1}</td>
-                    <td><div className="fw-bold">{role.name}</div></td>
-                    <td><span className="badge kr-department-badge">{role.department_name}</span></td>
-                    <td>{role.description || '-'}</td>
-                    <td>
-                      {role.status === 'active' ? (
-                        <span className="kr-badge kr-badge-active">Active</span>
-                      ) : (
-                        <span className="kr-badge kr-badge-inactive">Inactive</span>
-                      )}
-                    </td>
-                    <td>
-                      <button className="btn btn-sm kr-action-btn-edit me-1" title="Edit" onClick={() => openEditModal(role.id)}>
-                        <i className="fas fa-edit"></i>
-                      </button>
-                      <button className="btn btn-sm kr-action-btn-delete" title="Delete" onClick={() => handleDelete(role.id)}>
-                        <i className="fas fa-trash"></i>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {roles.length === 0 && (
-                  <tr><td colSpan="6" className="text-center text-muted">No roles found</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={columns}
+            data={indexedRoles}
+            defaultPageSize={10}
+            searchPlaceholder="Search roles…"
+            emptyMessage="No roles found"
+            rowKey={(row) => row.id}
+          />
         </div>
       </div>
 
+      {/* Role Modal */}
       {showModal && (
         <div className="modal fade show d-block" tabIndex="-1" style={{ background: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-dialog-centered">

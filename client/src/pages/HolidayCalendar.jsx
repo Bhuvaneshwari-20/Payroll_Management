@@ -16,15 +16,7 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-// Everything that used to live in HolidayCalendar.css, now inlined so there's
-// one file to maintain (this component is only ever rendered inside
-// LeaveAllocation.jsx's .kr-page-container, which already themes .ha-btn-toggle
-// and .card for us). The original rules hardcoded light-mode colors
-// (background: white, border: #eee, etc.) which is why the calendar grid and
-// the day cells stayed a flat white/grey panel on the dark theme in the
-// screenshot. Backgrounds/borders/text that should follow the theme now read
-// from the --vb-* variables; the header gradient and the orange "holiday" tile
-// are left as intentional brand accents.
+
 const holiday_calendar_styles = `
   .ha-calendar-container {
     background: var(--vb-bg-surface, #fff);

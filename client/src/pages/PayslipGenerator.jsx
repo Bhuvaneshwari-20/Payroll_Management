@@ -3,6 +3,7 @@ import Swal from 'sweetalert2';
 import html2pdf from 'html2pdf.js';
 import PayslipPreview from '../components/PayslipPreview';
 import { fn } from '../utils/payslipFormat';
+import DataTable from '../components/common/DataTable';
 import {
   getEmployeesSalary,
   generateSingle,
@@ -293,13 +294,6 @@ export default function PayslipGenerator() {
   const [approvedMap, setApprovedMap] = useState({});   // { employee_code: true }
   const [loaded, setLoaded] = useState(false);
 
-  // table search / sort (replaces jQuery DataTables)
-  const [search, setSearch] = useState('');
-  const [sortKey, setSortKey] = useState('employee_code');
-  const [sortDir, setSortDir] = useState('asc');
-  const [pageSize, setPageSize] = useState(25);
-  const [page, setPage] = useState(1);
-
   // multi-select employee dropdown
   const [ddOpen, setDdOpen] = useState(false);
   const [ddQuery, setDdQuery] = useState('');
@@ -381,7 +375,6 @@ export default function PayslipGenerator() {
       setEmployees(res.data.data);
       setApprovedMap(approved);
       setLoaded(true);
-      setPage(1);
     } catch (err) {
       Swal.fire('Error', err.message, 'error');
     } finally {
@@ -559,33 +552,48 @@ export default function PayslipGenerator() {
     Swal.fire('Done!', `${pending.length} payslip(s) approved and sent.`, 'success');
   }
 
-  // ── Table: filter / sort / paginate (replaces DataTables) ────────
-  const filteredRows = employees.filter((e) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      e.employee_code.toLowerCase().includes(q) ||
-      e.name.toLowerCase().includes(q) ||
-      (e.department || '').toLowerCase().includes(q)
-    );
-  });
-
-  const sortedRows = [...filteredRows].sort((a, b) => {
-    const va = a[sortKey], vb = b[sortKey];
-    const cmp = typeof va === 'number' ? va - vb : String(va ?? '').localeCompare(String(vb ?? ''));
-    return sortDir === 'asc' ? cmp : -cmp;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
-  const pageRows = sortedRows.slice((page - 1) * pageSize, page * pageSize);
-
-  function toggleSort(key) {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else {
-      setSortKey(key);
-      setSortDir('asc');
-    }
-  }
+  // ── Table columns for the shared DataTable (search/sort/pagination) ──
+  const empColumns = [
+    { key: 'employee_code', label: 'Emp Code', render: (e) => <strong>{e.employee_code}</strong> },
+    { key: 'name', label: 'Name' },
+    { key: 'department', label: 'Department' },
+    { key: 'gross_fixed', label: 'Gross Salary', render: (e) => `₹${fn(e.gross_fixed)}` },
+    { key: 'payable_days', label: 'Payable Days' },
+    {
+      key: 'net_salary',
+      label: 'Net Salary',
+      render: (e) => <span className="fw-bold text-success">₹{fn(e.net_salary)}</span>,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: false,
+      render: (e) =>
+        approvedMap[e.employee_code] ? (
+          <span className="status-badge-approved"><i className="fas fa-check-circle me-1"></i>Approved</span>
+        ) : (
+          <span className="status-badge-pending">Pending</span>
+        ),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (e) => {
+        const approved = !!approvedMap[e.employee_code];
+        return (
+          <>
+            <button className="btn btn-sm btn-outline-primary me-1" onClick={() => previewPayslip(e.employee_code)} title="Preview">
+              <i className="fas fa-eye"></i>
+            </button>
+            <button className="btn btn-sm btn-success" disabled={approved} onClick={() => directApprove(e.employee_code)}>
+              {approved ? <><i className="fas fa-check me-1"></i>Sent</> : <><i className="fas fa-paper-plane me-1"></i>Approve</>}
+            </button>
+          </>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="p-4 kr-page-container" id="kr-content">
@@ -726,76 +734,16 @@ export default function PayslipGenerator() {
                   <small className="text-muted">Period: {fromDate} → {toDate}</small>
                 </div>
 
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <div>
-                    Show
-                    <select className="form-select form-select-sm d-inline-block w-auto mx-2" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
-                      {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                    entries
-                  </div>
-                  <div>
-                    Search: <input className="form-control form-control-sm d-inline-block w-auto" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
-                  </div>
-                </div>
-
-                <table className="table table-bordered table-hover align-middle" id="empTable">
-                  <thead>
-                    <tr>
-                      <th>S.No</th>
-                      <th onClick={() => toggleSort('employee_code')}>Emp Code {sortKey === 'employee_code' && (sortDir === 'asc' ? '▲' : '▼')}</th>
-                      <th onClick={() => toggleSort('name')}>Name {sortKey === 'name' && (sortDir === 'asc' ? '▲' : '▼')}</th>
-                      <th onClick={() => toggleSort('department')}>Department {sortKey === 'department' && (sortDir === 'asc' ? '▲' : '▼')}</th>
-                      <th onClick={() => toggleSort('gross_fixed')}>Gross Salary</th>
-                      <th onClick={() => toggleSort('payable_days')}>Payable Days</th>
-                      <th onClick={() => toggleSort('net_salary')}>Net Salary</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageRows.map((emp, i) => {
-                      const approved = !!approvedMap[emp.employee_code];
-                      return (
-                        <tr key={emp.employee_code} className={approved ? 'row-approved' : ''}>
-                          <td>{(page - 1) * pageSize + i + 1}</td>
-                          <td><strong>{emp.employee_code}</strong></td>
-                          <td>{emp.name}</td>
-                          <td>{emp.department}</td>
-                          <td>₹{fn(emp.gross_fixed)}</td>
-                          <td>{emp.payable_days}</td>
-                          <td className="fw-bold text-success">₹{fn(emp.net_salary)}</td>
-                          <td>
-                            {approved ? (
-                              <span className="status-badge-approved"><i className="fas fa-check-circle me-1"></i>Approved</span>
-                            ) : (
-                              <span className="status-badge-pending">Pending</span>
-                            )}
-                          </td>
-                          <td>
-                            <button className="btn btn-sm btn-outline-primary me-1" onClick={() => previewPayslip(emp.employee_code)} title="Preview">
-                              <i className="fas fa-eye"></i>
-                            </button>
-                            <button className="btn btn-sm btn-success" disabled={approved} onClick={() => directApprove(emp.employee_code)}>
-                              {approved ? <><i className="fas fa-check me-1"></i>Sent</> : <><i className="fas fa-paper-plane me-1"></i>Approve</>}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-
-                <div className="d-flex justify-content-between align-items-center">
-                  <span className="text-muted small">
-                    Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, sortedRows.length)} of {sortedRows.length}
-                  </span>
-                  <div className="btn-group">
-                    <button className="btn btn-sm btn-outline-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
-                    <button className="btn btn-sm btn-outline-secondary disabled">{page} / {totalPages}</button>
-                    <button className="btn btn-sm btn-outline-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
-                  </div>
-                </div>
+                <DataTable
+                  data={employees}
+                  columns={empColumns}
+                  rowKey={(e) => e.employee_code}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  defaultPageSize={25}
+                  searchPlaceholder="Search by code, name, or department..."
+                  emptyMessage="No employees found"
+                  rowClassName={(e) => (approvedMap[e.employee_code] ? 'row-approved' : '')}
+                />
               </>
             )}
           </div>

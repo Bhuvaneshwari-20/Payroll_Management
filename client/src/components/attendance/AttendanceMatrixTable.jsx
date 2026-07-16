@@ -141,7 +141,7 @@ export default function AttendanceMatrixTable({ data, month, year }) {
       <th
         onClick={() => handleSort(sortKey)}
         style={{
-          position: 'sticky', top: 0, zIndex: sticky ? 3 : 2, background: '#3b82f6',
+          position: 'sticky', top: 0, zIndex: sticky ? 3 : 2, background: '#3b82f6', color: '#fff',
           ...(left !== undefined ? { left } : {}),
           minWidth, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
         }}
@@ -209,7 +209,7 @@ export default function AttendanceMatrixTable({ data, month, year }) {
                 <SortableTh label="Joining Date" sortKey="joining_date" />
                 <SortableTh label="Department" sortKey="department" />
                 {dayCols.map((d) => (
-                  <th key={d} className="text-center" style={{ position: 'sticky', top: 0, zIndex: 2, background: '#3b82f6', minWidth: 34 }}>{d}</th>
+                  <th key={d} className="text-center" style={{ position: 'sticky', top: 0, zIndex: 2, background: '#3b82f6', color: '#fff', minWidth: 34 }}>{d}</th>
                 ))}
                 <SortableTh label="Days" sortKey="numDays" />
            <SortableTh label="Present" sortKey="Present" />

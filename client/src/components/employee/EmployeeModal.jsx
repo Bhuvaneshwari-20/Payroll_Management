@@ -6,10 +6,51 @@ import defaultProfile from "../../assets/images/default-profile.png";
 const STEP_LABELS = ['Basic Details', 'KYC Details', 'Job Info', 'Salary Info'];
 const STEP_ICONS = ['fa-user', 'fa-university', 'fa-briefcase', 'fa-rupee-sign'];
 
+// Full list of Indian states/UTs mapped to their districts. State drives the
+// District dropdown: pick a State first, then District options populate.
+const STATE_DISTRICTS = {
+  "Andaman and Nicobar Islands": ["Nicobar", "North and Middle Andaman", "South Andaman"],
+  "Andhra Pradesh": ["Alluri Sitharama Raju", "Anakapalli", "Anantapur", "Annamayya", "Bapatla", "Chittoor", "East Godavari", "Eluru", "Guntur", "Kakinada", "Konaseema", "Krishna", "Kurnool", "Nandamuri Taraka Rama Rao", "Nandyal", "Palnadu", "Parvathipuram Manyam", "Prakasam", "Sri Potti Sriramulu Nellore", "Sri SathyaYSR", "Srikakulam", "Tirupati", "Visakhapatnam", "Vizianagaram", "West Godavari"],
+  "Arunachal Pradesh": ["Anjaw", "Changlang", "East Kameng", "East Siang", "Itanagar City Complex", "Kamle", "Kra Daadi", "Kurung Kumey", "Lepa Rada", "Lohit", "Longding", "Lower Dibang Valley", "Lower Siang", "Lower Subansiri", "Namsai", "Pakke-Kessang", "Papum Pare", "Shi Yomi", "Siang", "Tawang", "Tirap", "Upper Dibang Valley", "Upper Siang", "Upper Subansiri", "West Kameng", "West Siang"],
+  "Assam": ["Bajali", "Baksa", "Barpeta", "Biswanath", "Bongaigaon", "Cachar", "Charaideo", "Chirang", "Darrang", "Dhemaji", "Dhubri", "Dibrugarh", "Dima Hasao", "Goalpara", "Golaghat", "Hailakandi", "Hojai", "Jorhat", "Kamrup", "Kamrup Metropolitan", "Karbi Anglong", "Karimganj", "Kokrajhar", "Lakhimpur", "Majuli", "Morigaon", "Nagaon", "Nalbari", "Sivasagar", "Sonitpur", "South Salmara Mankachar", "Tamulpur", "Tinsukia", "Udalguri", "West Karbi Anglong"],
+  "Bihar": ["Araria", "Arwal", "Aurangabad", "Banka", "Begusarai", "Bhagalpur", "Bhojpur", "Buxar", "Darbhanga", "East Champaran", "Gaya", "Gopalganj", "Jamui", "Jehanabad", "Kaimur", "Katihar", "Khagaria", "Kishanganj", "Lakhisarai", "Madhepura", "Madhubani", "Munger", "Muzaffarpur", "Nalanda", "Nawada", "Patna", "Purnia", "Rohtas", "Saharsa", "Samastipur", "Saran", "Sheikhpura", "Sheohar", "Sitamarhi", "Siwan", "Supaul", "Vaishali", "West Champaran"],
+  "Chandigarh": ["Chandigarh"],
+  "Chhattisgarh": ["Balod", "Baloda Bazar-Bhatapara", "Balrampur", "Bastar", "Bemetara", "Bijapur", "Bilaspur", "Dantewada", "Dhamtari", "Durg", "Gariaband", "Gaurella-Pendra-Marwahi", "Janjgir-Champa", "Jashpur", "Kabirdham", "Kanker", "Khairagarh-Chhuikhadan-Gandai", "Kondagaon", "Korba", "Korea", "Mahasamund", "Manendragarh-Chirmiri-Bharatpur", "Mohla Manpur", "Mungeli", "Narayanpur", "Raigarh", "Raipur", "Rajnandgaon", "Sarangarh-Bilaigarh", "Shakti", "Sukma", "Surajpur", "Surguja"],
+  "Dadra and Nagar Haveli and Daman and Diu": ["Dadra and Nagar Haveli", "Daman", "Diu"],
+  "Delhi": ["Central Delhi", "East Delhi", "New Delhi", "North Delhi", "North East Delhi", "North West Delhi", "Shahdara district", "South Delhi", "South East Delhi", "South West Delhi", "West Delhi"],
+  "Goa": ["North Goa", "South Goa"],
+  "Gujarat": ["Ahmedabad", "Amreli", "Anand", "Aravalli", "Banaskantha", "Bharuch", "Bhavnagar", "Botad", "Chhota Udaipur", "Dahod", "Dang", "Devbhumi Dwarka", "Gandhinagar", "Gir Somnath", "Jamnagar", "Junagadh", "Kheda", "Kutch", "Mahisagar", "Mehsana", "Morbi", "Narmada", "Navsari", "Panchmahal", "Patan", "Porbandar", "Rajkot", "Sabarkantha", "Surat", "Surendranagar", "Tapi", "Vadodara", "Valsad"],
+  "Haryana": ["Ambala", "Bhiwani", "Charkhi Dadri", "Faridabad", "Fatehabad", "Gurugram", "Hisar", "Jhajjar", "Jind", "Kaithal", "Karnal", "Kurukshetra", "Mahendragarh", "Nuh", "Palwal", "Panchkula", "Panipat", "Rewari", "Rohtak", "Sirsa", "Sonipat", "Yamunanagar"],
+  "Himachal Pradesh": ["Bilaspur", "Chamba", "Hamirpur", "Kangra", "Kinnaur", "Kullu", "Lahaul and Spiti", "Mandi", "Shimla", "Sirmaur", "Solan", "Una"],
+  "Jammu and Kashmir": ["Anantnag", "Bandipore", "Baramulla", "Budgam", "Doda", "Ganderbal", "Jammu", "Kathua", "Kishtwar", "Kulgam", "Kupwara", "Poonch", "Pulwama", "Rajouri", "Ramban", "Reasi", "Samba", "Shopian", "Srinagar", "Udhampur"],
+  "Jharkhand": ["Bokaro", "Chatra", "Deoghar", "Dhanbad", "Dumka", "East Singhbhum", "Garhwa", "Giridih", "Godda", "Gumla", "Hazaribag", "Jamtara", "Khunti", "Koderma", "Latehar", "Lohardaga", "Pakur", "Palamu", "Ramgarh", "Ranchi", "Sahibganj", "Seraikela-Kharsawan", "Simdega", "West Singhbhum"],
+  "Karnataka": ["Bagalkot", "Bangalore Rural", "Bangalore Urban", "Belgaum", "Bellary", "Bidar", "Chamarajanagara", "Chikkaballapur", "Chikmagalur", "Chitradurga", "Dakshina Kannada", "Davanagere", "Dharwad", "Gadag", "Gulbarga", "Hassan", "Haveri", "Kodagu", "Kolar", "Koppala", "Mandya", "Mysore", "Raichur", "Ramanagara", "Shimoga", "Tumakuru", "Udupi", "Uttara Kannada", "Vijayanagara", "Vijayapura", "Yadgir"],
+  "Kerala": ["Alappuzha", "Ernakulam", "Idukki", "Kannur", "Kasaragod", "Kollam", "Kottayam", "Kozhikode", "Malappuram", "Palakkad", "Pathanamthitta", "Thiruvananthapuram", "Thrissur", "Wayanad"],
+  "Ladakh": ["Kargil", "Leh"],
+  "Lakshadweep": ["Lakshadweep"],
+  "Madhya Pradesh": ["Agar Malwa", "Alirajpur", "Anuppur", "Ashoknagar", "Balaghat", "Barwani", "Betul", "Bhind", "Bhopal", "Burhanpur", "Chachoda", "Chhatarpur", "Chhindwara", "Damoh", "Datia", "Dewas", "Dhar", "Dindori", "Guna", "Gwalior", "Harda", "Indore", "Jabalpur", "Jhabua", "Katni", "Khandwa (East Nimar)", "Khargone (West Nimar)", "Maihar", "Mandla", "Mandsaur", "Morena", "Nagda", "Narmadapuram", "Narsinghpur", "Neemuch", "Niwari", "Panna", "Raisen", "Rajgarh", "Ratlam", "Rewa", "Sagar", "Satna", "Sehore", "Seoni", "Shahdol", "Shajapur", "Sheopur", "Shivpuri", "Sidhi", "Singrauli", "Tikamgarh", "Ujjain", "Umaria", "Vidisha"],
+  "Maharashtra": ["Ahmednagar", "Akola", "Amravati", "Aurangabad", "Beed", "Bhandara", "Buldhana", "Chandrapur", "Dhule", "Gadchiroli", "Gondia", "Hingoli", "Jalgaon", "Jalna", "Kolhapur", "Latur", "Mumbai City", "Mumbai suburban", "Nagpur", "Nanded", "Nandurbar", "Nashik", "Osmanabad", "Palghar", "Parbhani", "Pune", "Raigad", "Ratnagiri", "Sangli", "Satara", "Sindhudurg", "Solapur", "Thane", "Wardha", "Washim", "Yavatmal"],
+  "Manipur": ["Bishnupur", "Chandel", "Churachandpur", "Imphal East", "Imphal West", "Jiribam", "Kakching", "Kamjong", "Kangpokpi", "Noney", "Pherzawl", "Senapati", "Tamenglong", "Tengnoupal", "Thoubal", "Ukhrul"],
+  "Meghalaya": ["East Garo Hills", "East Jaintia Hills", "East Khasi Hills", "Eastern West Khasi Hills district", "North Garo Hills", "Ri Bhoi", "South Garo Hills", "South West Garo Hills", "South West Khasi Hills", "West Garo Hills", "West Jaintia Hills", "West Khasi Hills"],
+  "Mizoram": ["Aizawl", "Champhai", "Hnahthial", "Khawzawl", "Kolasib", "Lawngtlai", "Lunglei", "Mamit", "Saiha", "Saitual", "Serchhip"],
+  "Nagaland": ["Ch\u00fcmoukedima", "Dimapur", "Kiphire", "Kohima", "Longleng", "Mokokchung", "Mon", "Niuland", "Noklak", "Peren", "Phek", "Shamator", "Tseminy\u00fc", "Tuensang", "Wokha", "Zunheboto"],
+  "Odisha": ["Angul", "Balangir", "Balasore", "Bargarh (Baragarh)", "Bhadrak", "Boudh (Bauda)", "Cuttack", "Debagarh (Deogarh)", "Dhenkanal", "Gajapati", "Ganjam", "Jagatsinghpur", "Jajpur", "Jharsuguda", "Kalahandi", "Kandhamal", "Kendrapara", "Kendujhar", "Khordha", "Koraput", "Malkangiri", "Mayurbhanj", "Nabarangpur", "Nayagarh", "Nuapada", "Puri", "Rayagada", "Sambalpur", "Subarnapur (Sonepur)", "Sundargarh"],
+  "Puducherry": ["Karaikal", "Mah\u00e9", "Puducherry", "Yanam"],
+  "Punjab": ["Amritsar", "Barnala", "Bathinda", "Faridkot", "Fatehgarh Sahib", "Fazilka", "Firozpur", "Gurdaspur", "Hoshiarpur", "Jalandhar", "Kapurthala", "Ludhiana", "Malerkotla", "Mansa", "Moga", "Pathankot", "Patiala", "Rupnagar", "Sahibzada Ajit Singh Nagar", "Sangrur", "Shahid Bhagat Singh Nagar", "Sri Muktsar Sahib", "Tarn Taran"],
+  "Rajasthan": ["Ajmer", "Alwar", "Banswara", "Baran", "Barmer", "Bharatpur", "Bhilwara", "Bikaner", "Bundi", "Chittorgarh", "Churu", "Dausa", "Dholpur", "Dungarpur", "Hanumangarh", "Jaipur", "Jaisalmer", "Jalore", "Jhalawar", "Jhunjhunu", "Jodhpur", "Karauli", "Kota", "Nagaur", "Pali", "Pratapgarh", "Rajsamand", "Sawai Madhopur", "Sikar", "Sirohi", "Sri Ganganagar", "Tonk", "Udaipur"],
+  "Sikkim": ["East Sikkim", "North Sikkim", "Pakyong", "Soreng", "South Sikkim", "West Sikkim"],
+  "Tamil Nadu": ["Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri", "Dindigul", "Erode", "Kallakurichi", "Kanchipuram", "Kanyakumari", "Karur", "Krishnagiri", "Madurai", "Mayiladuthurai", "Nagapattinam", "Namakkal", "Nilgiris", "Perambalur", "Pudukkottai", "Ramanathapuram", "Ranipet", "Salem", "Sivaganga", "Tenkasi", "Thanjavur", "Theni", "Thoothukudi", "Tiruchirappalli", "Tirunelveli", "Tirupattur", "Tiruppur", "Tiruvallur", "Tiruvannamalai", "Tiruvarur", "Vellore", "Viluppuram", "Virudhunagar"],
+  "Telangana": ["Adilabad", "Bhadradri Kothagudem", "Hanamkonda", "Hyderabad", "Jagtial", "Jangaon", "Jayashankar Bhupalpally", "Jogulamba Gadwal", "Kamareddy", "Karimnagar", "Khammam", "Kumuram Bheem Asifabad", "Mahabubabad", "Mahbubnagar", "Mancherial", "Medak", "Medchal\u2013Malkajgiri", "Mulugu", "Nagarkurnool", "Nalgonda", "Narayanpet", "Nirmal", "Nizamabad", "Peddapalli", "Rajanna Sircilla", "Ranga Reddy", "Sangareddy", "Siddipet", "Suryapet", "Vikarabad", "Wanaparthy", "Warangal", "Yadadri Bhuvanagiri"],
+  "Tripura": ["Dhalai", "Gomati", "Khowai", "North Tripura", "Sepahijala", "South Tripura", "Unakoti", "West Tripura"],
+  "Uttar Pradesh": ["Agra", "Aligarh", "Allahabad", "Ambedkar Nagar", "Amethi", "Amroha", "Auraiya", "Azamgarh", "Bagpat", "Bahraich", "Ballia", "Balrampur", "Banda", "Barabanki", "Bareilly", "Basti", "Bhadohi", "Bijnor", "Budaun", "Bulandshahr", "Chandauli", "Chitrakoot", "Deoria", "Etah", "Etawah", "Faizabad", "Farrukhabad", "Fatehpur", "Firozabad", "Gautam Buddha Nagar", "Ghaziabad", "Ghazipur", "Gonda", "Gorakhpur", "Hamirpur", "Hapur", "Hardoi", "Hathras", "Jalaun", "Jaunpur", "Jhansi", "Kannauj", "Kanpur Dehat", "Kanpur Nagar", "Kasganj", "Kaushambi", "Kushinagar", "Lakhimpur Kheri", "Lalitpur", "Lucknow", "Maharajganj", "Mahoba", "Mainpuri", "Mathura", "Mau", "Meerut", "Mirzapur", "Moradabad", "Muzaffarnagar", "Pilibhit", "Pratapgarh", "Raebareli", "Rampur", "Saharanpur", "Sambhal", "Sant Kabir Nagar", "Shahjahanpur", "Shamli", "Shravasti", "Siddharthnagar", "Sitapur", "Sonbhadra", "Sultanpur", "Unnao", "Varanasi"],
+  "Uttarakhand": ["Almora", "Bageshwar", "Chamoli", "Champawat", "Dehradun", "Didihat", "Haridwar", "Kotdwar", "Nainital", "Pauri Garhwal", "Pithoragarh", "Ranikhet", "Rudraprayag", "Tehri Garhwal", "Udham Singh Nagar", "Uttarkashi", "Yamunotri"],
+  "West Bengal": ["Alipurduar", "Bankura", "Birbhum", "Cooch Behar", "Dakshin Dinajpur", "Darjeeling", "Hooghly", "Howrah", "Jalpaiguri", "Jhargram", "Kalimpong", "Kolkata", "Maldah", "Murshidabad", "Nadia", "North 24 Parganas", "Paschim Bardhaman", "Paschim Medinipur", "Purba Bardhaman", "Purba Medinipur", "Purulia", "South 24 Parganas", "Uttar Dinajpur"],
+};
+
 const emptyForm = {
   employeeId: '', employeeCode: '',
   firstName: '', lastName: '', dob: '', phone: '', emergencyContact: '', email: '',
-  gender: '', blood_group: '', fatherName: '', qualification: '', address: '', district: '', pincode: '',
+  gender: '', blood_group: '', fatherName: '', qualification: '', address: '', district: '', state: '', pincode: '', pfNumber: '',
   aadhaar: '', pan: '', bankName: '', branchName: '', accountNumber: '', confirmAccountNumber: '', ifscCode: '',
   uanNumber: '', esicNumber: '',
   joinDate: '', empStatus: 'active', jtype: 'Permanent', department: '', role: '', manager: '',
@@ -64,7 +105,8 @@ export default function EmployeeModal({ employeeId, departments, onClose, onSave
         firstName: emp.first_name || '', lastName: emp.last_name || '', dob: emp.dob ? emp.dob.substring(0, 10) : '',
         phone: emp.phone || '', emergencyContact: emp.emergency_contact || '', email: emp.email || '',
         gender: emp.gender || '', blood_group: emp.blood_group || '', fatherName: emp.father_name || '',
-        qualification: emp.qualification || '', address: emp.address || '', district: emp.district || '', pincode: emp.pincode || '',
+        qualification: emp.qualification || '', address: emp.address || '', district: emp.district || '',
+        state: emp.state || '', pincode: emp.pincode || '', pfNumber: emp.pf_number || '',
         aadhaar: emp.aadhaar || '', pan: emp.pan || '', bankName: emp.bank_name || '', branchName: emp.branch_name || '',
         accountNumber: emp.account_number || '', confirmAccountNumber: emp.account_number || '', ifscCode: emp.ifsc_code || '',
         uanNumber: emp.uan_number || '', esicNumber: emp.esic_number || '',
@@ -90,6 +132,9 @@ export default function EmployeeModal({ employeeId, departments, onClose, onSave
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
   const setErr = (key, msg) => setErrors((e) => ({ ...e, [key]: msg }));
+  const handleStateChange = (value) => {
+    setForm((f) => ({ ...f, state: value, district: '' }));
+  };
 
   const handleProfileChange = (e) => {
     const file = e.target.files[0];
@@ -146,7 +191,7 @@ export default function EmployeeModal({ employeeId, departments, onClose, onSave
       if (form.phone && !/^\d{10}$/.test(form.phone)) { newErrors.phone = 'Enter valid 10-digit number.'; valid = false; }
       if (form.emergencyContact && !/^\d{10}$/.test(form.emergencyContact)) { newErrors.emergencyContact = 'Enter valid 10-digit number.'; valid = false; }
       if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { newErrors.email = 'Enter valid email address.'; valid = false; }
-      req('district'); req('pincode');
+      req('district'); req('state'); req('pincode');
     }
     if (s === 2) {
       ['aadhaar', 'bankName', 'branchName', 'accountNumber', 'confirmAccountNumber', 'ifscCode'].forEach((f) => req(f));
@@ -243,7 +288,9 @@ export default function EmployeeModal({ employeeId, departments, onClose, onSave
     fd.append('blood_group', form.blood_group || '');
     fd.append('emergency_contact', form.emergencyContact || '');
     fd.append('district', form.district || '');
+    fd.append('state', form.state || '');
     fd.append('pincode', form.pincode || '');
+    fd.append('pf_number', form.pfNumber || '');
     fd.append('employee_master_type', form.employeeMaster || '');
     fd.append('caution_deposit', form.employeeMaster === 'caution_deposit' ? (form.cautionDeposit || 0) : 0);
 
@@ -380,8 +427,17 @@ export default function EmployeeModal({ employeeId, departments, onClose, onSave
                       <label className="emp-label">Address</label>
                       <textarea className="emp-input" rows={2} value={form.address} onChange={(e) => setField('address', e.target.value)} placeholder="Enter full address" />
                     </div>
+                    <Field label="State" required error={errors.state}>
+                      <select className={`emp-input ${errors.state ? 'is-invalid' : ''}`} value={form.state} onChange={(e) => handleStateChange(e.target.value)}>
+                        <option value="">Select State</option>
+                        {Object.keys(STATE_DISTRICTS).map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </Field>
                     <Field label="District" required error={errors.district}>
-                      <input className={`emp-input ${errors.district ? 'is-invalid' : ''}`} value={form.district} onChange={(e) => setField('district', e.target.value)} placeholder="Enter district name" />
+                      <select className={`emp-input ${errors.district ? 'is-invalid' : ''}`} value={form.district} onChange={(e) => setField('district', e.target.value)} disabled={!form.state}>
+                        <option value="">{form.state ? 'Select District' : 'Select State first'}</option>
+                        {(STATE_DISTRICTS[form.state] || []).map((d) => <option key={d} value={d}>{d}</option>)}
+                      </select>
                     </Field>
                     <Field label="Pincode" required error={errors.pincode}>
                       <input className={`emp-input ${errors.pincode ? 'is-invalid' : ''}`} maxLength={6} value={form.pincode}
@@ -400,6 +456,9 @@ export default function EmployeeModal({ employeeId, departments, onClose, onSave
                     </Field>
                     <Field label="PAN Number" error={errors.pan} col="col-md-6">
                       <input className={`emp-input ${errors.pan ? 'is-invalid' : ''}`} maxLength={10} style={{ textTransform: 'uppercase' }} value={form.pan} onChange={(e) => setField('pan', e.target.value)} placeholder="e.g. ABCDE1234F" />
+                    </Field>
+                    <Field label="PF Number" error={errors.pfNumber} col="col-md-6">
+                      <input className="emp-input" value={form.pfNumber} onChange={(e) => setField('pfNumber', e.target.value)} placeholder="Enter PF number (if applicable)" />
                     </Field>
                     <div className="col-12 mt-2">
                       <div className="emp-divider-label"><i className="fas fa-university me-2"></i>Bank Information</div>

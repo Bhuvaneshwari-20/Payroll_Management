@@ -28,8 +28,8 @@ function DonutChart({ present, absent }) {
   const total = present + absent;
   const presentPct = total ? Math.round((present / total) * 100) : 0;
 
-  const size = 168;
-  const stroke = 18;
+  const size = 208;
+  const stroke = 20;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
   const presentLength = total ? (present / total) * circumference : 0;
@@ -200,11 +200,18 @@ export default function AdminStatsCards() {
         }
 
         /* Donut */
+        .vb-donut-card {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+        }
+
         .vb-donut-wrap {
           position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
+          flex: 1;
           padding: 0.5rem 0;
         }
 
@@ -221,13 +228,13 @@ export default function AdminStatsCards() {
         }
 
         .vb-donut-pct {
-          font-size: 1.7rem;
+          font-size: 2.1rem;
           font-weight: 700;
           color: var(--vb-text, #1e293b);
         }
 
         .vb-donut-label {
-          font-size: 0.75rem;
+          font-size: 0.85rem;
           color: var(--vb-text-muted, #64748b);
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -475,7 +482,7 @@ export default function AdminStatsCards() {
       </div>
 
       <div className="vb-overview-grid">
-        <div className="vb-chart-card">
+        <div className="vb-chart-card vb-donut-card">
           <div className="vb-chart-title">Today's Attendance</div>
           <DonutChart present={stats.presentToday} absent={stats.absentToday} />
         </div>

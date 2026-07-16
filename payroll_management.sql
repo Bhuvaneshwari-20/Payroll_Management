@@ -767,3 +767,10 @@ UPDATE attendance a
 JOIN leave_types lt ON lt.code = a.status
 SET a.leave_type_id = lt.id
 WHERE a.status IN ('CL', 'SL', 'OD');
+
+=========================================================
+----16.07.2026
+
+ALTER TABLE employees
+  ADD COLUMN state VARCHAR(50) NULL AFTER district,
+  ADD COLUMN pf_number VARCHAR(30) NULL AFTER pincode;

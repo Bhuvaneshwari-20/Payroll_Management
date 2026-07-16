@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import attendanceService from '../services/attendanceService';
 import { useAttendanceStatusOptions } from '../utils/useAttendanceStatusOptions';
 import AttendanceMatrixTable from '../components/attendance/AttendanceMatrixTable';
+import DataTable from '../components/common/DataTable';
 
 // Same pattern as LeaveManagement.jsx / Departments.jsx / Roles.jsx /
 // EmployeeManagement.jsx: Bootstrap's .card/.table/.nav-tabs/.form-control
@@ -164,6 +165,57 @@ function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
     }
   };
 
+  const columns = [
+    { key: 'employee_code', label: 'Employee Code' },
+    { key: 'name', label: 'Employee Name' },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: false,
+      render: (e) => (
+        <select
+          className="form-select form-select-sm"
+          value={statusMap[e.id] || 'P'}
+          onChange={(ev) => setStatusMap({ ...statusMap, [e.id]: ev.target.value })}
+        >
+          {statusOptions.map((s) => (
+            <option key={s.code} value={s.code}>
+              {optionLabel(s.code, e.id)}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      key: 'half_day',
+      label: 'Half day',
+      sortable: false,
+      render: (e) => (
+        <div className="text-center">
+          <input
+            type="checkbox"
+            className="form-check-input"
+            checked={!!halfDayMap[e.id]}
+            onChange={(ev) => setHalfDayMap({ ...halfDayMap, [e.id]: ev.target.checked })}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'remarks',
+      label: 'Remarks',
+      sortable: false,
+      render: (e) => (
+        <input
+          type="text"
+          className="form-control form-control-sm"
+          value={remarksMap[e.id] || ''}
+          onChange={(ev) => setRemarksMap({ ...remarksMap, [e.id]: ev.target.value })}
+        />
+      ),
+    },
+  ];
+
   return (
     <div className="card shadow-sm">
       <div className="card-body">
@@ -210,59 +262,13 @@ function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
           </div>
         ) : (
           <div className="table-responsive">
-            <table className="table table-bordered table-sm align-middle">
-              <thead className="table-light">
-                <tr>
-                  <th>Employee Code</th>
-                  <th>Employee Name</th>
-                  <th style={{ width: 150 }}>Status</th>
-                  <th style={{ width: 90 }} className="text-center">Half day</th>
-                  <th>Remarks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map((e) => (
-                  <tr key={e.id}>
-                    <td>{e.employee_code}</td>
-                    <td>{e.name}</td>
-                    <td>
-                      <select
-                        className="form-select form-select-sm"
-                         value={statusMap[e.id] || 'P'}
-                        onChange={(ev) => setStatusMap({ ...statusMap, [e.id]: ev.target.value })}
-                      >
-                          {statusOptions.map((s) => (
-                         <option key={s.code} value={s.code}>
-                           {optionLabel(s.code, e.id)}
-                        </option>
-                       ))}
-                      </select>
-                    </td>
-                    <td className="text-center">
-                      <input
-                        type="checkbox"
-                        className="form-check-input"
-                        checked={!!halfDayMap[e.id]}
-                        onChange={(ev) => setHalfDayMap({ ...halfDayMap, [e.id]: ev.target.checked })}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        value={remarksMap[e.id] || ''}
-                        onChange={(ev) => setRemarksMap({ ...remarksMap, [e.id]: ev.target.value })}
-                      />
-                    </td>
-                  </tr>
-                ))}
-                {employees.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="text-center text-muted py-3">No active employees found</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            <DataTable
+              data={employees}
+              rowKey={(e) => e.id}
+              searchPlaceholder="Search by employee code or name..."
+              emptyMessage="No active employees found"
+              columns={columns}
+            />
           </div>
         )}
       </div>
