@@ -36,14 +36,22 @@ function getMonthsInRange(fromDate, toDate) {
 // Since our schema has ONE `attendance` table (not month-sharded), we
 // query it directly with a date range per employee instead of switching
 // tables per month like the legacy PHP did.
+//
+// paid_leave / unpaid_days now read the `is_lop` stamp that was decided
+// once at attendance-marking time (attendanceController.js: resolveLopFlag),
+// instead of independently re-counting a hardcoded ('CL','SL','OD') list.
+// That old hardcoded list is why PAL/MAL days were falling out of payable
+// days entirely and turning into full LOP here — same root cause as the
+// attendance report bug, just duplicated into this file.
 async function getAttendanceSummary(employeeId, holidayLower, holidayUpper, effStart, effEnd) {
   const [[row]] = await db.query(
     `SELECT
        COUNT(CASE WHEN status = 'Present' THEN 1 END) AS present_full,
        COUNT(CASE WHEN status = 'Holiday' AND date BETWEEN ? AND ? THEN 1 END) AS holidays,
-       COUNT(CASE WHEN status = 'CL' THEN 1 END) AS CL,
-       COUNT(CASE WHEN status = 'OD' THEN 1 END) AS OD,
-       COUNT(CASE WHEN status = 'SL' THEN 1 END) AS SL,
+       COUNT(CASE WHEN status NOT IN ('Present','Absent','Holiday') AND is_lop = 0 THEN 1 END) AS paid_leave,
+       COUNT(CASE WHEN status = 'Absent'
+                    OR (status NOT IN ('Present','Absent','Holiday') AND is_lop = 1)
+                  THEN 1 END) AS unpaid_days,
        SUM(CASE WHEN is_half_day = 1 THEN 0.5 ELSE 0 END) AS half_days
      FROM attendance
      WHERE employee_id = ? AND date BETWEEN ? AND ?`,
@@ -124,7 +132,14 @@ exports.calculateSalary = async (fromDate, toDate) => {
         payment_mode: emp.hold_mode || 'neft',
         ot_minutes: 0, ot_amount: 0,
         holiday_wage_days: 0, holiday_wage_amount: 0,
-        days: totalDays, present: 0, holidays: 0, cl: 0, od: 0, sl: 0, el: 0, leave: 0,
+        days: totalDays, present: 0, holidays: 0,
+        // cl/od/sl/el kept at 0 for backward compatibility with any frontend
+        // still reading these specific columns — they're no longer populated
+        // because leave is generalized across all leave_types now (see
+        // paid_leave below). Point the frontend at paid_leave/lop instead.
+        cl: 0, od: 0, sl: 0, el: 0,
+        leave: 0,
+        paid_leave: 0,
         deductions: {
           pf: 0, esi: 0,
           advance: Number(emp.advance) || 0,
@@ -147,13 +162,14 @@ exports.calculateSalary = async (fromDate, toDate) => {
     const presentFull = Number(att.present_full) || 0;
     const halfDays = Number(att.half_days) || 0;
     const holidays = Number(att.holidays) || 0;
-    const cl = Number(att.CL) || 0;
-    const od = Number(att.OD) || 0;
-    const sl = Number(att.SL) || 0;
+    const paidLeave = Number(att.paid_leave) || 0;
 
     const totalPresent = presentFull + halfDays;
     const emp_actual_days = Math.round((new Date(effEnd) - new Date(effStart)) / 86400000) + 1;
-    const rawPayable = totalPresent + cl + sl + od + holidays;
+    // was: totalPresent + cl + sl + od + holidays — that silently excluded
+    // PAL/MAL/any leave type outside the hardcoded three, so those days
+    // never became payable and fell entirely into LOP below.
+    const rawPayable = totalPresent + paidLeave + holidays;
     const payableThisMonth = Math.min(emp_actual_days, rawPayable);
 
     const t = employeeTotals[eid];
@@ -166,7 +182,7 @@ exports.calculateSalary = async (fromDate, toDate) => {
 
     t.present += totalPresent;
     t.holidays += holidays;
-    t.cl += cl; t.od += od; t.sl += sl;
+    t.paid_leave += paidLeave;
     t.leave += payableThisMonth;
   }
 
@@ -205,6 +221,7 @@ exports.calculateSalary = async (fromDate, toDate) => {
     emp.cl = emp.cl.toFixed(1);
     emp.od = emp.od.toFixed(1);
     emp.sl = emp.sl.toFixed(1);
+    emp.paid_leave = emp.paid_leave.toFixed(1);
     emp.leave = emp.leave.toFixed(1);
     emp.lop = lop.toFixed(1);
 

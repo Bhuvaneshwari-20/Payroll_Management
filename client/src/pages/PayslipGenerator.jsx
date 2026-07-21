@@ -600,12 +600,12 @@ export default function PayslipGenerator() {
       <style>{payslip_generator_styles}</style>
 
       <div className="kr-page-container">
-        <nav aria-label="breadcrumb" className="kr-breadcrumb">
+        {/* <nav aria-label="breadcrumb" className="kr-breadcrumb">
           <ol className="breadcrumb">
             <li className="breadcrumb-item"><a href="#"><i className="fas fa-home"></i></a></li>
             <li className="breadcrumb-item active">Payslip Generator</li>
           </ol>
-        </nav>
+        </nav> */}
         <div className="kr-page-header">
           <h1 className="kr-page-title">Payslip Generator</h1>
           <p className="kr-page-subtitle">Generate and approve employee payslips</p>

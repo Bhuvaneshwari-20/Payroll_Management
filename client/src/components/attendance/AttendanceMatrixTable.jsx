@@ -115,14 +115,14 @@ export default function AttendanceMatrixTable({ data, month, year }) {
     const header = [
       'Employee Code', 'Name', 'Joining Date', 'Department',
       ...dayCols.map(String),
-      'Days', 'Present', 'CL', 'OD', 'SL', 'Holiday', 'Payable Days',
+      'Days', 'Present', ...leaveTypeCodes, 'Holiday', 'LOP', 'Payable Days',
     ];
     const rows = sorted.map((r) => [
       r.employee_code, r.name,
       r.joining_date ? new Date(r.joining_date).toLocaleDateString('en-GB') : '',
       r.department || '',
       ...dayCols.map((d) => r.days[d] || ''),
-      r.numDays, r.Present, r.CL, r.OD, r.SL, r.Holiday, r.payableDays,
+      r.numDays, r.Present, ...leaveTypeCodes.map((code) => r[code] ?? 0), r.Holiday, r.LOP, r.payableDays,
     ]);
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
     ws['!cols'] = header.map((h) => ({ wch: ['Employee Code', 'Name', 'Joining Date', 'Department'].includes(h) ? 16 : 6 }));
@@ -216,6 +216,8 @@ export default function AttendanceMatrixTable({ data, month, year }) {
               {leaveTypeCodes.map((code) => (
                  <SortableTh key={code} label={code} sortKey={code} />
                ))}
+                <SortableTh label="Holiday" sortKey="Holiday" />
+                <SortableTh label="LOP" sortKey="LOP" />
                 <SortableTh label="Payable Days" sortKey="payableDays" />
               </tr>
             </thead>
@@ -245,15 +247,16 @@ export default function AttendanceMatrixTable({ data, month, year }) {
                   })}
                   <td>{r.numDays}</td>
                   <td>{r.Present}</td>
-                  <td>{r.CL}</td>
-                  <td>{r.OD}</td>
-                  <td>{r.SL}</td>
+                  {leaveTypeCodes.map((code) => (
+                    <td key={code} className="text-center">{r[code] ?? 0}</td>
+                  ))}
                   <td>{r.Holiday}</td>
+                  <td className="text-danger fw-semibold">{r.LOP}</td>
                   <td className="fw-semibold">{r.payableDays}</td>
                 </tr>
               ))}
               {pageRows.length === 0 && (
-                <tr><td colSpan={8 + numDays} className="text-center text-muted py-3">No records found</td></tr>
+                <tr><td colSpan={8 + leaveTypeCodes.length + numDays} className="text-center text-muted py-3">No records found</td></tr>
               )}
             </tbody>
           </table>

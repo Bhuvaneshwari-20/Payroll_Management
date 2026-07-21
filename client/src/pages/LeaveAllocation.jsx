@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Swal from 'sweetalert2';
-import { getEmployeeBalances, assignPolicy, assignPolicyToAll, resetUsed } from '../services/leaveAllocationApi';
+import { getEmployeeBalances, assignPolicy, assignPolicyToAll, resetUsed, runMonthlyAccrual } from '../services/leaveAllocationApi';
 import employeeService from '../services/employeeService';
 import { fetchLeavePolicies } from '../services/leavePolicyService';
 import HolidayCalendar from './HolidayCalendar';
@@ -208,6 +208,32 @@ export default function LeaveAllocation() {
     }
   };
 
+  // Manual trigger for the same job jobs/monthlyLeaveAccrual.js runs
+  // automatically on the 1st of the month — lets HR credit this month's
+  // allocation on demand (testing, or catching up a missed cron instant)
+  // instead of waiting for the scheduler.
+  const handleRunAccrual = async () => {
+    const result = await Swal.fire({
+      title: 'Run monthly accrual now?',
+      text: "Credits this month's allocation (e.g. +1 CL, +1 SL) onto every eligible employee's balance. Safe to run more than once — already-credited employees this month are skipped automatically.",
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, run it',
+    });
+    if (!result.isConfirmed) return;
+
+    setLoading(true);
+    try {
+      const res = await runMonthlyAccrual();
+      notify('success', res.data.message);
+      loadBalances();
+    } catch (err) {
+      notify('error', err.response?.data?.message || 'Failed to run monthly accrual');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="kr-page-container">
       <style>{leave_allocation_styles}</style>
@@ -347,7 +373,12 @@ export default function LeaveAllocation() {
         <div className="card">
           <div className="card-header d-flex justify-content-between align-items-center">
             <h5 className="mb-0">Leave Balances</h5>
-            <button className="btn btn-danger" onClick={handleReset}>Reset Used (All)</button>
+            <div className="d-flex gap-2">
+              <button className="btn btn-outline-primary" disabled={loading} onClick={handleRunAccrual}>
+                Run Monthly Accrual
+              </button>
+              <button className="btn btn-danger" onClick={handleReset}>Reset Used (All)</button>
+            </div>
           </div>
           <div className="card-body">
             <div className="table-responsive">

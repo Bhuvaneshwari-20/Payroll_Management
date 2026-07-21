@@ -774,3 +774,13 @@ WHERE a.status IN ('CL', 'SL', 'OD');
 ALTER TABLE employees
   ADD COLUMN state VARCHAR(50) NULL AFTER district,
   ADD COLUMN pf_number VARCHAR(30) NULL AFTER pincode;
+
+===============================================================
+------17.07.2026
+ALTER TABLE attendance ADD COLUMN is_lop TINYINT(1) DEFAULT NULL;
+
+=======================================================================
+-------20-07-2026
+
+ALTER TABLE employees ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE employees ADD COLUMN deleted_at TIMESTAMP NULL DEFAULT NULL;

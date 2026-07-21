@@ -12,26 +12,35 @@ function isValidDateStr(str) {
   return /^\d{4}-\d{2}-\d{2}$/.test(str || "");
 }
 
-// Maps the DB's actual status representation (attendance.status enum +
-// is_half_day flag + holidays.type for that date) into the single-letter
-// codes the frontend (AttendanceDetailModal / bucketFor in the controller)
-// already expects. Built in SQL so it stays fast across a full date range.
-const STATUS_CASE_SQL = `
-  CASE
-    WHEN a.status = 'Holiday' AND h.type = 'Week-Off' THEN 'WO'
-    WHEN a.status = 'Holiday' THEN 'H'
-    WHEN a.status = 'Present' AND a.is_half_day = 1 THEN 'S'
-    WHEN a.status = 'Present' THEN 'P'
-    WHEN a.status = 'Absent'  THEN 'AB'
-    WHEN a.status IN ('CL','SL','OD') THEN a.status
-    ELSE 'AB'
-  END
-`;
-
 exports.getRawRows = async ({ fromDate, toDate, departmentId, employeeCode }) => {
   if (!isValidDateStr(fromDate) || !isValidDateStr(toDate)) {
     throw new Error("Invalid date format, expected YYYY-MM-DD");
   }
+
+  // Pulled live from leave_types instead of a hardcoded ('CL','SL','OD') list.
+  // The old hardcoded list is exactly why PAL/MAL days were silently turned
+  // into 'AB' before the controller ever saw them — any leave type HR adds
+  // later now works automatically, same source attendanceController.js's
+  // getStatusMaps() already uses.
+  const [leaveTypes] = await db.query(`SELECT code FROM leave_types WHERE status = 'active'`);
+  const leaveCodes = leaveTypes.map((t) => t.code);
+  const leaveCodeList = leaveCodes.length ? leaveCodes.map(() => "?").join(",") : "NULL";
+
+  // Maps the DB's actual status representation (attendance.status enum +
+  // is_half_day flag + holidays.type for that date) into the single-letter
+  // codes the frontend (AttendanceDetailModal / bucketFor in the controller)
+  // already expects. Built in SQL so it stays fast across a full date range.
+  const statusCaseSql = `
+    CASE
+      WHEN a.status = 'Holiday' AND h.type = 'Week-Off' THEN 'WO'
+      WHEN a.status = 'Holiday' THEN 'H'
+      WHEN a.status = 'Present' AND a.is_half_day = 1 THEN 'S'
+      WHEN a.status = 'Present' THEN 'P'
+      WHEN a.status = 'Absent'  THEN 'AB'
+      WHEN a.status IN (${leaveCodeList}) THEN a.status
+      ELSE 'AB'
+    END
+  `;
 
   let sql = `
     SELECT
@@ -39,7 +48,8 @@ exports.getRawRows = async ({ fromDate, toDate, departmentId, employeeCode }) =>
       e.joining_date, d.name AS department, d.id AS department_id,
       a.date,
       '-' AS in_time, '-' AS out_time, '-' AS working_hours,
-      ${STATUS_CASE_SQL} AS status,
+      ${statusCaseSql} AS status,
+      a.is_lop,
       a.remarks
     FROM attendance a
     INNER JOIN employees e ON e.id = a.employee_id AND e.status = 'active'
@@ -47,7 +57,9 @@ exports.getRawRows = async ({ fromDate, toDate, departmentId, employeeCode }) =>
     LEFT JOIN holidays h ON h.hdate = a.date
     WHERE a.date BETWEEN ? AND ?
   `;
-  const params = [fromDate, toDate];
+  // leaveCodes params come first because they fill the IN (?, ?, ...) list
+  // built into statusCaseSql above, which appears before the WHERE clause.
+  const params = [...leaveCodes, fromDate, toDate];
 
   if (departmentId) {
     sql += " AND d.id = ?";

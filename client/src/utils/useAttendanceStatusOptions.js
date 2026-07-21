@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fetchLeaveTypes } from '../services/leaveTypeService';
 import { getEmployeeBalances } from '../services/leaveAllocationApi';
 
@@ -21,9 +21,17 @@ export function useAttendanceStatusOptions({ withBalances = false } = {}) {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!withBalances) return;
-    getEmployeeBalances().then((res) => {
+  // Pulled out as its own function (instead of an inline .then() in the
+  // effect below) so callers — e.g. Attendance.jsx after a successful
+  // save — can call it directly to force a refresh. Before this, balances
+  // were only ever fetched once on mount: the effect's dependency array
+  // was [withBalances], and withBalances is a constant passed in by the
+  // caller, so it never changed and the effect never ran a second time.
+  // A save could update employee_leave_balance.used correctly in the DB
+  // and the dropdown would still show the balance from page-load time.
+  const refetchBalances = useCallback(() => {
+    if (!withBalances) return Promise.resolve();
+    return getEmployeeBalances().then((res) => {
       const rows = res.data.data || [];
       const map = {};
       rows.forEach((r) => {
@@ -32,6 +40,11 @@ export function useAttendanceStatusOptions({ withBalances = false } = {}) {
       });
       setBalances(map);
     }).catch(() => {});
+  }, [withBalances]);
+
+  useEffect(() => {
+    refetchBalances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [withBalances]);
 
   const statusOptions = [...BASE_STATUSES, ...leaveTypes.map((lt) => ({ code: lt.code, name: lt.name }))];
@@ -52,5 +65,5 @@ export function useAttendanceStatusOptions({ withBalances = false } = {}) {
     return `${code} — ${name} (${bal.balance} left)`;
   }
 
-  return { statusOptions, leaveTypes, codesHelpText, balances, optionLabel };
+  return { statusOptions, leaveTypes, codesHelpText, balances, optionLabel, refetchBalances };
 }

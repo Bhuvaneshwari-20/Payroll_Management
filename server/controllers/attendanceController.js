@@ -2,35 +2,36 @@
 const pool = require('../config/db');
 const XLSX = require('xlsx');
 
-const STATUS_VALUES = ['Present', 'Absent', 'CL', 'SL', 'OD', 'Holiday'];
+// Fixed statuses that aren't leave types (Present/Absent/Holiday always exist).
+// Everything else (CL, SL, OD, PAL, MAL, ...) now comes from leave_types,
+// so HR adding a new leave type shows up here automatically — no code change.
+const FIXED_STATUS_CODES = { Present: 'P', Absent: 'AB', Holiday: 'H' };
 
-// Matrix-format codes, matching the "KR Toyota - Dashboard" export you shared.
-// ASSUMPTION: "/S" suffix = half-day of that status (e.g. OD/S = half-day OD).
-// This is the one thing I couldn't confirm from the screenshot — if wrong,
-// only this map + the isHalfDaySuffix check below need to change.
-const STATUS_CODES = {
-  Present: 'P',
-  Absent: 'AB',
-  CL: 'CL',
-  SL: 'SL',
-  OD: 'OD',
-  Holiday: 'H',
-};
-const CODE_TO_STATUS = Object.fromEntries(Object.entries(STATUS_CODES).map(([k, v]) => [v, k]));
+// Builds { STATUS_VALUES, STATUS_CODES, CODE_TO_STATUS } fresh from the DB.
+// Cheap query (small table), called once per request — not cached, so a
+// leave type added/disabled mid-session takes effect immediately.
+async function getStatusMaps() {
+  const [types] = await pool.query(`SELECT code FROM leave_types WHERE status = 'active'`);
+  const STATUS_CODES = { ...FIXED_STATUS_CODES };
+  types.forEach((t) => { STATUS_CODES[t.code] = t.code; });
+  const STATUS_VALUES = Object.keys(STATUS_CODES);
+  const CODE_TO_STATUS = Object.fromEntries(Object.entries(STATUS_CODES).map(([k, v]) => [v, k]));
+  return { STATUS_VALUES, STATUS_CODES, CODE_TO_STATUS };
+}
 
-function parseCode(raw) {
+function parseCode(raw, maps) {
   if (raw === null || raw === undefined) return null;
   const str = String(raw).trim().toUpperCase();
   if (!str) return null;
   const half = str.endsWith('/S');
   const base = half ? str.slice(0, -2) : str;
-  const status = CODE_TO_STATUS[base];
+  const status = maps.CODE_TO_STATUS[base];
   if (!status) return null;
   return { status, half };
 }
 
-function formatCode(status, half) {
-  const code = STATUS_CODES[status] || status;
+function formatCode(status, half, maps) {
+  const code = maps.STATUS_CODES[status] || status;
   return half ? `${code}/S` : code;
 }
 
@@ -38,11 +39,94 @@ function daysInMonth(month, year) {
   return new Date(year, month, 0).getDate();
 }
 
+// ---------------------------------------------------------------------------
+// LOP / leave-balance helpers
+//
+// The paid-vs-LOP decision is made ONCE, here, at the moment attendance is
+// saved — never recomputed later by the report or salary queries. This is
+// what keeps a report run for June and a report run for June+July from
+// disagreeing about the same leave day: whichever query runs first doesn't
+// matter, because the answer was already decided and stored on the row.
+//
+// Uses the REAL schema from models/EmployeeLeaveBalance.js:
+//   table: employee_leave_balance (singular)
+//   columns: employee_id, leave_type_id, allocated, used, carry_forward
+//   balance = allocated + carry_forward - used  (not a stored column)
+// ---------------------------------------------------------------------------
+const EmployeeLeaveBalance = require('../models/EmployeeLeaveBalance');
+
+// Call once per leave-type day (in date order), inside the same transaction
+// that writes the attendance row. Increments employee_leave_balance.used and
+// returns whether this specific day is paid (0) or LOP (1). Returns null for
+// non-leave statuses (Present/Absent/Holiday) — is_lop doesn't apply to them.
+async function resolveLopFlag(conn, employeeId, leaveTypeId, isHalfDay) {
+  if (!leaveTypeId) return null;
+
+  // Unlimited types (e.g. OD) never get an employee_leave_balance row by
+  // design (see EmployeeLeaveBalance.assignPolicyToEmployee) — "no row"
+  // means "not tracked", not "zero balance". Without this check, every
+  // Unlimited-type leave day was being misread as LOP.
+  const unlimited = await EmployeeLeaveBalance.isUnlimitedType(employeeId, leaveTypeId, conn);
+  if (unlimited) return 0; // always paid, never balance-checked
+
+  const consumed = isHalfDay ? 0.5 : 1;
+  const [[row]] = await conn.query(
+    `SELECT allocated, used, carry_forward FROM employee_leave_balance
+     WHERE employee_id = ? AND leave_type_id = ? FOR UPDATE`,
+    [employeeId, leaveTypeId]
+  );
+
+  // No row = leave type never assigned via a policy for this employee.
+  // Treated as zero balance available -> LOP. Confirm this is the behavior
+  // you want; the alternative is to reject the mark entirely and ask HR to
+  // assign a policy first.
+  const available = row ? Number(row.allocated) + Number(row.carry_forward) - Number(row.used) : 0;
+
+  if (available >= consumed) {
+    await EmployeeLeaveBalance.incrementUsed(employeeId, leaveTypeId, consumed, conn);
+    return 0; // paid
+  }
+  return 1; // LOP — no balance left, don't go negative
+}
+
+// Refunds `used` if the row being overwritten was previously a paid leave
+// day. Must run BEFORE resolveLopFlag for the new value, or an edit
+// (e.g. PAL -> Present, or PAL -> CL) will silently leak/duplicate balance.
+async function reverseIfPaidLeave(conn, existing) {
+  if (!existing || !existing.leave_type_id || existing.is_lop !== 0) return;
+  const consumed = existing.is_half_day ? 0.5 : 1;
+  await EmployeeLeaveBalance.decrementUsed(existing.employee_id, existing.leave_type_id, consumed, conn);
+}
+
+// Fetches whatever is currently stored for these (employee, date) pairs, so
+// markAttendance can reverse any previously-consumed balance before applying
+// the new status.
+async function getExistingRows(conn, date, employeeIds) {
+  if (employeeIds.length === 0) return new Map();
+  const [rows] = await conn.query(
+    `SELECT employee_id, status, leave_type_id, is_half_day, is_lop
+     FROM attendance WHERE date = ? AND employee_id IN (?)`,
+    [date, employeeIds]
+  );
+  const map = new Map();
+  rows.forEach((r) => map.set(r.employee_id, r));
+  return map;
+}
+
+// GET /api/attendance/leave-statuses  — lets the frontend build the dropdown
+// dynamically instead of hardcoding ['Present','Absent','CL','SL','OD','Holiday']
+exports.getStatusOptions = async (req, res) => {
+  try {
+    const maps = await getStatusMaps();
+    res.json({ success: true, data: maps.STATUS_VALUES.map((s) => ({ status: s, code: maps.STATUS_CODES[s] })) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch status options' });
+  }
+};
+
 // GET /api/attendance/employees
 exports.getActiveEmployees = async (req, res) => {
   try {
-    // ADJUST: column names (employee_code, status='active') to match your employees table
-    // employees table uses first_name + last_name, not a single "name" column
     const [rows] = await pool.query(
       `SELECT id, employee_code, CONCAT(first_name, ' ', last_name) AS name, department_id
        FROM employees
@@ -62,7 +146,7 @@ exports.getAttendanceByDate = async (req, res) => {
   if (!date) return res.status(400).json({ success: false, message: 'date is required' });
   try {
     const [rows] = await pool.query(
-      `SELECT employee_id, status, is_half_day, remarks FROM attendance WHERE date = ?`,
+      `SELECT employee_id, status, leave_type_id, is_half_day, is_lop, remarks FROM attendance WHERE date = ?`,
       [date]
     );
     res.json({ success: true, message: 'ok', data: rows });
@@ -78,30 +162,67 @@ exports.markAttendance = async (req, res) => {
   if (!date || !Array.isArray(records) || records.length === 0) {
     return res.status(400).json({ success: false, message: 'date and records[] are required' });
   }
+
+  const maps = await getStatusMaps();
+  // Accept either form: the canonical key ('Present', 'CL', ...) or the
+  // short display code ('P', 'AB', 'H' — for leave types these are already
+  // identical to the key, e.g. 'CL' === 'CL'). Whatever the frontend sends,
+  // normalize it to the canonical key here, since that's the form every
+  // other function in this file (formatCode, getMonthlyReport, buildSummary
+  // upstream, existing DB rows) already expects in the `status` column.
+  const normalizedRecords = [];
   for (const r of records) {
-    if (!STATUS_VALUES.includes(r.status)) {
+    const canonical = maps.STATUS_VALUES.includes(r.status)
+      ? r.status
+      : maps.CODE_TO_STATUS[r.status];
+    if (!canonical) {
       return res.status(400).json({ success: false, message: `Invalid status: ${r.status}` });
     }
+    normalizedRecords.push({ ...r, status: canonical });
   }
+
+  // Look up leave_type_id for any status that is a leave type (not Present/Absent/Holiday)
+  const [leaveTypeRows] = await pool.query(`SELECT id, code FROM leave_types WHERE status = 'active'`);
+  const codeToLeaveTypeId = new Map(leaveTypeRows.map((t) => [t.code, t.id]));
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+
+    // Reverse any previously-consumed balance for these slots first (handles
+    // edits — e.g. HR changes yesterday's PAL mark to Present), THEN resolve
+    // the new status against the (now-restored) balance.
+    const employeeIds = normalizedRecords.map((r) => r.employee_id);
+    const existingMap = await getExistingRows(conn, date, employeeIds);
+
+    const values = [];
+    for (const r of normalizedRecords) {
+      const existing = existingMap.get(r.employee_id);
+      if (existing) await reverseIfPaidLeave(conn, { ...existing, employee_id: r.employee_id });
+
+      const leaveTypeId = codeToLeaveTypeId.get(r.status) || null;
+      const isLop = await resolveLopFlag(conn, r.employee_id, leaveTypeId, !!r.is_half_day);
+
+      values.push([
+        r.employee_id,
+        date,
+        r.status,
+        leaveTypeId,
+        r.is_half_day ? 1 : 0,
+        r.remarks || null,
+        req.user?.id || null,
+        'manual',
+        isLop,
+      ]);
+    }
+
     const sql = `
-      INSERT INTO attendance (employee_id, date, status, is_half_day, remarks, marked_by, source)
+      INSERT INTO attendance (employee_id, date, status, leave_type_id, is_half_day, remarks, marked_by, source, is_lop)
       VALUES ?
-      ON DUPLICATE KEY UPDATE status = VALUES(status), is_half_day = VALUES(is_half_day),
-        remarks = VALUES(remarks), marked_by = VALUES(marked_by), source = VALUES(source),
-        updated_at = CURRENT_TIMESTAMP
+      ON DUPLICATE KEY UPDATE status = VALUES(status), leave_type_id = VALUES(leave_type_id),
+        is_half_day = VALUES(is_half_day), remarks = VALUES(remarks), marked_by = VALUES(marked_by),
+        source = VALUES(source), is_lop = VALUES(is_lop), updated_at = CURRENT_TIMESTAMP
     `;
-    const values = records.map((r) => [
-      r.employee_id,
-      date,
-      r.status,
-      r.is_half_day ? 1 : 0,
-      r.remarks || null,
-      req.user?.id || null,
-      'manual',
-    ]);
     await conn.query(sql, [values]);
     await conn.commit();
     res.json({ success: true, message: `Attendance saved for ${date}` });
@@ -117,6 +238,9 @@ exports.markAttendance = async (req, res) => {
 // Shared by both the downloadable template and the on-screen monthly report,
 // so the two never drift apart.
 async function buildTemplateWorkbook(month, year) {
+  const maps = await getStatusMaps();
+  const leaveStatuses = maps.STATUS_VALUES.filter((s) => !['Present', 'Absent'].includes(s));
+
   const [employees] = await pool.query(
     `SELECT e.id, e.employee_code, CONCAT(e.first_name, ' ', e.last_name) AS name, e.joining_date, d.name AS department
      FROM employees e
@@ -128,7 +252,7 @@ async function buildTemplateWorkbook(month, year) {
   const numDays = daysInMonth(month, year);
   const fixedCols = ['Employee Code', 'Name', 'Joining Date', 'Department'];
   const dayCols = Array.from({ length: numDays }, (_, i) => String(i + 1));
-  const summaryCols = ['Days', 'Present', 'CL', 'OD', 'SL', 'Holiday', 'Payable Days'];
+  const summaryCols = ['Days', ...leaveStatuses, 'Payable Days'];
   const header = [...fixedCols, ...dayCols, ...summaryCols];
 
   const firstDayColIdx = fixedCols.length;
@@ -145,53 +269,43 @@ async function buildTemplateWorkbook(month, year) {
       emp.department || '',
     ];
     for (let d = 0; d < numDays; d++) row.push('P'); // pre-filled default: Present
-    row.push(numDays, null, null, null, null, null, null); // Days + 6 formula cells
+    row.push(numDays, ...leaveStatuses.map(() => null), null); // Days + one formula cell per status + Payable Days
     aoa.push(row);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
   // Live formulas so the summary columns recalculate automatically in Excel
-  // as soon as HR edits the day codes — no manual re-typing of totals.
-  //
-  // FIX: half-day codes now credit Present with the worked half of the day,
-  // in addition to their own leave/absence category. e.g. "AB/S" (half-day
-  // absent) = 0.5 Present (the half they worked) + 0 toward Absent, since
-  // Absent isn't a paid/summary column. "CL/S" = 0.5 CL + 0.5 Present, i.e.
-  // the day is fully payable (half worked + half approved leave).
+  // as HR edits day codes. Half-day suffix "/S" credits half a Present day
+  // plus half of its own leave category — same convention as before, just
+  // generated per-status instead of hardcoded to CL/OD/SL/Holiday.
   employees.forEach((_, i) => {
     const rowNum = i + 2; // header is row 1
     const range = `${firstDayColLetter}${rowNum}:${lastDayColLetter}${rowNum}`;
-    const presentCol = XLSX.utils.encode_col(lastDayColIdx + 2); // +1 is 'Days'
-    const clCol = XLSX.utils.encode_col(lastDayColIdx + 3);
-    const odCol = XLSX.utils.encode_col(lastDayColIdx + 4);
-    const slCol = XLSX.utils.encode_col(lastDayColIdx + 5);
-    const holCol = XLSX.utils.encode_col(lastDayColIdx + 6);
-    const payCol = XLSX.utils.encode_col(lastDayColIdx + 7);
 
-    ws[`${presentCol}${rowNum}`] = {
-      f: `COUNTIF(${range},"P")`
-        + `+COUNTIF(${range},"P/S")*0.5`
-        + `+COUNTIF(${range},"AB/S")*0.5`
-        + `+COUNTIF(${range},"CL/S")*0.5`
-        + `+COUNTIF(${range},"OD/S")*0.5`
-        + `+COUNTIF(${range},"SL/S")*0.5`
-        + `+COUNTIF(${range},"H/S")*0.5`,
-    };
-    ws[`${clCol}${rowNum}`] = { f: `COUNTIF(${range},"CL")+COUNTIF(${range},"CL/S")*0.5` };
-    ws[`${odCol}${rowNum}`] = { f: `COUNTIF(${range},"OD")+COUNTIF(${range},"OD/S")*0.5` };
-    ws[`${slCol}${rowNum}`] = { f: `COUNTIF(${range},"SL")+COUNTIF(${range},"SL/S")*0.5` };
-    ws[`${holCol}${rowNum}`] = { f: `COUNTIF(${range},"H")+COUNTIF(${range},"H/S")*0.5` };
-    ws[`${payCol}${rowNum}`] = {
-      f: `${presentCol}${rowNum}+${clCol}${rowNum}+${odCol}${rowNum}+${slCol}${rowNum}+${holCol}${rowNum}`,
-    };
+    const statusColLetters = leaveStatuses.map((_, idx) => XLSX.utils.encode_col(lastDayColIdx + 2 + idx));
+    const payCol = XLSX.utils.encode_col(lastDayColIdx + 2 + leaveStatuses.length);
+
+    let presentFormula = `COUNTIF(${range},"P")+COUNTIF(${range},"P/S")*0.5`;
+    leaveStatuses.forEach((status, idx) => {
+      const code = maps.STATUS_CODES[status];
+      const col = statusColLetters[idx];
+      presentFormula += `+COUNTIF(${range},"${code}/S")*0.5`;
+      ws[`${col}${rowNum}`] = { f: `COUNTIF(${range},"${code}")+COUNTIF(${range},"${code}/S")*0.5` };
+    });
+
+    const presentColLetter = XLSX.utils.encode_col(lastDayColIdx + 1);
+    ws[`${presentColLetter}${rowNum}`] = { f: presentFormula };
+
+    const sumRefs = statusColLetters.map((c) => `${c}${rowNum}`).join('+');
+    ws[`${payCol}${rowNum}`] = { f: `${presentColLetter}${rowNum}${sumRefs ? '+' + sumRefs : ''}` };
   });
 
   ws['!cols'] = header.map((h) => ({ wch: fixedCols.includes(h) ? 16 : 6 }));
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
-  return wb;
+  return { wb, maps };
 }
 
 // GET /api/attendance/template?month=7&year=2026
@@ -202,7 +316,7 @@ exports.downloadTemplate = async (req, res) => {
     return res.status(400).json({ success: false, message: 'month and year are required' });
   }
   try {
-    const wb = await buildTemplateWorkbook(month, year);
+    const { wb } = await buildTemplateWorkbook(month, year);
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     res.setHeader('Content-Disposition', `attachment; filename=attendance_${year}_${month}.xlsx`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -214,9 +328,6 @@ exports.downloadTemplate = async (req, res) => {
 };
 
 // POST /api/attendance/upload  (multipart: excel_file, month, year)
-// Reads ONLY the day-code columns (1, 2, 3...) as the source of truth.
-// Summary columns (Present/CL/OD/.../Payable Days) are ignored on upload —
-// they're derived formulas, recomputed server-side, never trusted as input.
 exports.uploadAttendance = async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
   const month = parseInt(req.body.month, 10);
@@ -226,6 +337,10 @@ exports.uploadAttendance = async (req, res) => {
   }
 
   try {
+    const maps = await getStatusMaps();
+    const [leaveTypeRows] = await pool.query(`SELECT id, code FROM leave_types WHERE status = 'active'`);
+    const codeToLeaveTypeId = new Map(leaveTypeRows.map((t) => [t.code, t.id]));
+
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
@@ -239,7 +354,7 @@ exports.uploadAttendance = async (req, res) => {
 
     const numDays = daysInMonth(month, year);
     const errors = [];
-    const values = [];
+    const parsedEntries = [];
 
     rows.forEach((row, idx) => {
       const rowNum = idx + 2; // header is row 1
@@ -252,33 +367,74 @@ exports.uploadAttendance = async (req, res) => {
 
       for (let d = 1; d <= numDays; d++) {
         const raw = row[String(d)];
-        const parsed = parseCode(raw);
+        const parsed = parseCode(raw, maps);
         if (!parsed) {
           if (raw && String(raw).trim()) {
             errors.push(`Row ${rowNum}, day ${d}: invalid code "${raw}"`);
           }
-          continue; // blank cell = no entry for that day, skip silently
+          continue;
         }
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        values.push([empId, dateStr, parsed.status, parsed.half ? 1 : 0, null, req.user?.id || null, 'bulk_upload']);
+        parsedEntries.push({
+          employeeId: empId,
+          date: dateStr,
+          status: parsed.status,
+          isHalfDay: parsed.half,
+        });
       }
     });
 
     if (errors.length > 0) {
       return res.status(400).json({ success: false, message: 'Validation failed', errors });
     }
-    if (values.length === 0) {
+    if (parsedEntries.length === 0) {
       return res.status(400).json({ success: false, message: 'No valid attendance codes found in the file' });
     }
+
+    // Process in date order so leave balance is consumed chronologically —
+    // this is what makes "took 17 PAL days, allocated 15" correctly resolve
+    // to 15 paid + 2 LOP regardless of row order in the spreadsheet.
+    parsedEntries.sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? -1 : 1));
 
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+
+      const values = [];
+      for (const entry of parsedEntries) {
+        // Per-row lookup (not batched) so FOR UPDATE locking + balance
+        // decrement stays correct even when the same employee appears many
+        // times across the sorted list. For very large uploads (thousands
+        // of rows) this is the throughput trade-off for correctness.
+        const [[existing]] = await conn.query(
+          `SELECT status, leave_type_id, is_half_day, is_lop FROM attendance
+           WHERE employee_id = ? AND date = ?`,
+          [entry.employeeId, entry.date]
+        );
+        if (existing) await reverseIfPaidLeave(conn, { ...existing, employee_id: entry.employeeId });
+
+        const leaveTypeId = codeToLeaveTypeId.get(entry.status) || null;
+        const isLop = await resolveLopFlag(conn, entry.employeeId, leaveTypeId, entry.isHalfDay);
+
+        values.push([
+          entry.employeeId,
+          entry.date,
+          entry.status,
+          leaveTypeId,
+          entry.isHalfDay ? 1 : 0,
+          null,
+          req.user?.id || null,
+          'bulk_upload',
+          isLop,
+        ]);
+      }
+
       const sql = `
-        INSERT INTO attendance (employee_id, date, status, is_half_day, remarks, marked_by, source)
+        INSERT INTO attendance (employee_id, date, status, leave_type_id, is_half_day, remarks, marked_by, source, is_lop)
         VALUES ?
-        ON DUPLICATE KEY UPDATE status = VALUES(status), is_half_day = VALUES(is_half_day),
-          marked_by = VALUES(marked_by), source = VALUES(source), updated_at = CURRENT_TIMESTAMP
+        ON DUPLICATE KEY UPDATE status = VALUES(status), leave_type_id = VALUES(leave_type_id),
+          is_half_day = VALUES(is_half_day), marked_by = VALUES(marked_by), source = VALUES(source),
+          is_lop = VALUES(is_lop), updated_at = CURRENT_TIMESTAMP
       `;
       await conn.query(sql, [values]);
       await conn.commit();
@@ -289,7 +445,7 @@ exports.uploadAttendance = async (req, res) => {
       conn.release();
     }
 
-    res.json({ success: true, message: `${values.length} attendance entries saved for ${month}/${year}` });
+    res.json({ success: true, message: `${parsedEntries.length} attendance entries saved for ${month}/${year}` });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to process upload' });
@@ -297,9 +453,6 @@ exports.uploadAttendance = async (req, res) => {
 };
 
 // GET /api/attendance/report?month=7&year=2026
-// Same matrix shape as the template, but as JSON for on-screen viewing on
-// the Attendance Report page, built from the SAME buildTemplateWorkbook
-// data source so template and report can never disagree.
 exports.getMonthlyReport = async (req, res) => {
   const month = parseInt(req.query.month, 10);
   const year = parseInt(req.query.year, 10);
@@ -307,6 +460,9 @@ exports.getMonthlyReport = async (req, res) => {
     return res.status(400).json({ success: false, message: 'month and year are required' });
   }
   try {
+    const maps = await getStatusMaps();
+    const leaveStatuses = maps.STATUS_VALUES.filter((s) => s !== 'Present');
+
     const [employees] = await pool.query(
       `SELECT e.id, e.employee_code, CONCAT(e.first_name, ' ', e.last_name) AS name, e.joining_date, d.name AS department
        FROM employees e
@@ -316,50 +472,64 @@ exports.getMonthlyReport = async (req, res) => {
     );
     const numDays = daysInMonth(month, year);
     const [attRows] = await pool.query(
-      `SELECT employee_id, DAY(date) AS d, status, is_half_day
+      `SELECT employee_id, DAY(date) AS d, status, is_half_day, is_lop
        FROM attendance
        WHERE YEAR(date) = ? AND MONTH(date) = ?`,
       [year, month]
     );
 
     const byEmployee = new Map();
+    // Separate accumulator, keyed by employee — NOT part of the `days` map,
+    // which only ever holds the display code string (e.g. "PAL/S") per day.
+    // resolveLopFlag() already decided, at save time, whether each leave
+    // day was paid or LOP; this report needs to read that decision back
+    // out via is_lop rather than re-deriving it from scratch.
+    const lopByEmployee = new Map();
     attRows.forEach((r) => {
       if (!byEmployee.has(r.employee_id)) byEmployee.set(r.employee_id, {});
-      byEmployee.get(r.employee_id)[r.d] = formatCode(r.status, !!r.is_half_day);
+      byEmployee.get(r.employee_id)[r.d] = formatCode(r.status, !!r.is_half_day, maps);
+
+      if (r.is_lop) {
+        const consumed = r.is_half_day ? 0.5 : 1;
+        lopByEmployee.set(r.employee_id, (lopByEmployee.get(r.employee_id) || 0) + consumed);
+      }
     });
 
     const data = employees.map((emp) => {
       const days = byEmployee.get(emp.id) || {};
-      const summary = { Present: 0, CL: 0, OD: 0, SL: 0, Holiday: 0 };
+      const summary = { Present: 0 };
+      leaveStatuses.forEach((s) => { summary[s] = 0; });
 
       for (let d = 1; d <= numDays; d++) {
         const code = days[d];
         if (!code) continue;
-        const parsed = parseCode(code);
+        const parsed = parseCode(code, maps);
         if (!parsed) continue;
         const { status, half } = parsed;
 
         if (status === 'Present') {
-          // Full or half day explicitly marked Present.
           summary.Present += half ? 0.5 : 1;
         } else {
-          // Credit the leave/absence category itself (Absent has no
-          // summary column, so this is a no-op for AB/full-AB — correct,
-          // a full absent day earns nothing).
           if (summary[status] !== undefined) {
             summary[status] += half ? 0.5 : 1;
           }
-          // FIX: a half-day of ANY status (including AB/S) means the
-          // employee worked the other half of that day — credit that
-          // half to Present. This is what was missing before, causing
-          // AB/S to silently contribute 0 instead of 0.5 Present.
           if (half) {
             summary.Present += 0.5;
           }
         }
       }
 
-      const payableDays = summary.Present + summary.CL + summary.OD + summary.SL + summary.Holiday;
+      // A LOP day still shows under its own leave-type column above (e.g.
+      // a LOP PAL day still counts toward PAL=17 — that's correct, it's
+      // still useful to know 17 PAL days were taken even though only 11
+      // were paid). What was missing was subtracting the unpaid portion
+      // back out of payableDays, and surfacing it as its own column.
+      const lopDays = lopByEmployee.get(emp.id) || 0;
+
+      const payableDays = Object.entries(summary)
+        .filter(([k]) => k !== 'Absent')
+        .reduce((sum, [, v]) => sum + v, 0) - lopDays;
+
       return {
         employee_code: emp.employee_code,
         name: emp.name,
@@ -368,6 +538,7 @@ exports.getMonthlyReport = async (req, res) => {
         days,
         numDays,
         ...summary,
+        LOP: lopDays,
         payableDays,
       };
     });

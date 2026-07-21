@@ -1,10 +1,10 @@
 const db = require('../config/db');
+const EmployeeLeaveBalance = require('./EmployeeLeaveBalance');
 
 // ============================================================
 // Helpers
 // ============================================================
 
-// Same day-counting rule as the legacy calculateLeaveDays() in PHP.
 function calculateLeaveDays(startDate, endDate, startShift, endShift) {
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -23,10 +23,6 @@ function calculateLeaveDays(startDate, endDate, startShift, endShift) {
   return days;
 }
 
-// Types whose approval consumes the employee's leave_balance quota.
-// On Duty / other types don't touch the balance — matches legacy rule.
-const BALANCE_AFFECTING_TYPES = ['Casual Leave', 'Sick Leave'];
-
 function dateRange(startDate, endDate) {
   const dates = [];
   const cur = new Date(startDate);
@@ -42,19 +38,17 @@ function dateRange(startDate, endDate) {
 // Leave types (shared dropdown source)
 // ============================================================
 exports.getLeaveTypes = async () => {
-  const [rows] = await db.query('SELECT id, name FROM leave_types ORDER BY name ASC');
+  const [rows] = await db.query('SELECT id, name, code FROM leave_types WHERE status = "active" ORDER BY name ASC');
   return rows;
 };
 
 exports.getLeaveTypeById = async (id) => {
-  const [rows] = await db.query('SELECT id, name FROM leave_types WHERE id = ?', [id]);
+  const [rows] = await db.query('SELECT id, name, code FROM leave_types WHERE id = ?', [id]);
   return rows[0] || null;
 };
 
 // ============================================================
 // Manager resolution
-// employees.manager_id -> managers.id -> managers.employee_code -> employees.id
-// (mirrors the join used in the legacy getEmployeeData() query)
 // ============================================================
 exports.resolveManagerEmployeeId = async (employeeId) => {
   const [rows] = await db.query(
@@ -84,39 +78,41 @@ exports.applyLeave = async ({ employeeId, category, leaveTypeId, startDate, endD
   }
 
   const days = calculateLeaveDays(startDate, endDate, startShift, endShift);
-  const affectsBalance = BALANCE_AFFECTING_TYPES.includes(leaveType.name);
+
+  // Balance-tracked = HR has allocated this employee a balance for this
+  // leave type (via an assigned policy). Types not in the employee's
+  // policy (or set to "Unlimited" in the policy) simply aren't checked —
+  // same as the old On Duty behavior, just derived from data instead of
+  // a hardcoded type-name list.
+  const balanceRow = await EmployeeLeaveBalance.getBalanceRow(employeeId, leaveTypeId);
+  const affectsBalance = !!balanceRow;
 
   const managerEmployeeId = await exports.resolveManagerEmployeeId(employeeId);
   if (!managerEmployeeId) {
     throw new Error('You do not have a manager assigned. Contact HR.');
   }
 
-  // Monthly quota: max 1 Casual/Sick leave per month (inherited business
-  // rule from the legacy system — adjust here if that's not the real policy).
   if (affectsBalance) {
+    // Monthly quota: max 1 request per leave type per month (inherited
+    // business rule from the legacy system — adjust if not the real policy).
     const monthStart = `${startDate.slice(0, 7)}-01`;
     const [[{ cnt }]] = await db.query(
       `SELECT COUNT(*) AS cnt FROM leave_requests lr
-       JOIN leave_types lt ON lr.leave_type_id = lt.id
-       WHERE lr.employee_id = ? AND lt.name = ?
+       WHERE lr.employee_id = ? AND lr.leave_type_id = ?
          AND lr.start_date BETWEEN ? AND LAST_DAY(?)
          AND lr.status IN ('Pending','Forwarded','Approved')`,
-      [employeeId, leaveType.name, monthStart, monthStart]
+      [employeeId, leaveTypeId, monthStart, monthStart]
     );
     if (cnt >= 1) {
       throw new Error(`You have already used your 1 ${leaveType.name} for this month.`);
     }
 
-    const [[{ leave_balance: balance }]] = await db.query(
-      'SELECT leave_balance FROM employees WHERE id = ?',
-      [employeeId]
-    );
-    if ((balance || 0) < days) {
-      throw new Error(`Insufficient leave balance. Available: ${balance}, Required: ${days}`);
+    const balance = balanceRow.allocated + balanceRow.carry_forward - balanceRow.used;
+    if (balance < days) {
+      throw new Error(`Insufficient ${leaveType.name} balance. Available: ${balance}, Required: ${days}`);
     }
   }
 
-  // Overlap check against any active (non-final-rejected/cancelled) request
   const [overlap] = await db.query(
     `SELECT id FROM leave_requests
      WHERE employee_id = ?
@@ -141,7 +137,7 @@ exports.applyLeave = async ({ employeeId, category, leaveTypeId, startDate, endD
     );
 
     if (affectsBalance) {
-      await conn.query('UPDATE employees SET leave_balance = leave_balance - ? WHERE id = ?', [days, employeeId]);
+      await EmployeeLeaveBalance.incrementUsed(employeeId, leaveTypeId, days, conn);
     }
 
     await conn.commit();
@@ -183,7 +179,7 @@ exports.cancelLeave = async (employeeId, id) => {
     await conn.beginTransaction();
     await conn.query("UPDATE leave_requests SET status = 'Cancelled' WHERE id = ?", [id]);
     if (leave.balance_deducted) {
-      await conn.query('UPDATE employees SET leave_balance = leave_balance + ? WHERE id = ?', [leave.days, employeeId]);
+      await EmployeeLeaveBalance.decrementUsed(employeeId, leave.leave_type_id, leave.days, conn);
     }
     await conn.commit();
   } catch (err) {
@@ -239,7 +235,7 @@ exports.managerRespond = async (id, action, comments, managerEmployeeId) => {
         [comments, id]
       );
       if (leave.balance_deducted) {
-        await conn.query('UPDATE employees SET leave_balance = leave_balance + ? WHERE id = ?', [leave.days, leave.employee_id]);
+        await EmployeeLeaveBalance.decrementUsed(leave.employee_id, leave.leave_type_id, leave.days, conn);
       }
     } else {
       throw new Error('Invalid action');
@@ -293,20 +289,10 @@ exports.getAllForHR = async (category, statusFilter) => {
   return rows;
 };
 
-// Maps a leave type NAME to the code your attendance table's `status`
-// enum expects. ADJUST to match your actual leave_types rows.
-const LEAVE_TYPE_ATTENDANCE_MAP = {
-  'Casual Leave': 'CL',
-  'Sick Leave': 'SL',
-  'On Duty': 'OD',
-};
-function mapLeaveTypeToAttendanceStatus(leaveTypeName) {
-  return LEAVE_TYPE_ATTENDANCE_MAP[leaveTypeName] || 'CL';
-}
-
 exports.hrRespond = async (id, action, comments, hrEmployeeId) => {
   const [rows] = await db.query(
-    `SELECT lr.*, lt.name AS leave_type_name FROM leave_requests lr
+    `SELECT lr.*, lt.name AS leave_type_name, lt.code AS leave_type_code
+     FROM leave_requests lr
      JOIN leave_types lt ON lr.leave_type_id = lt.id WHERE lr.id = ?`,
     [id]
   );
@@ -327,16 +313,19 @@ exports.hrRespond = async (id, action, comments, hrEmployeeId) => {
         [comments, hrEmployeeId, id]
       );
 
-      const attStatus = mapLeaveTypeToAttendanceStatus(leave.leave_type_name);
+      // Dynamic — whatever code this leave type has (CL, SL, WFH, ML, ...),
+      // no longer a hardcoded name->code map. attendance.status is VARCHAR
+      // now, so any code is valid (see migration_leave_bundle.sql).
       for (const d of dates) {
         const isHalf = (d === leave.start_date && leave.start_shift === 'Half day')
           || (d === leave.end_date && leave.end_shift === 'Half day');
         await conn.query(
-          `INSERT INTO attendance (employee_id, date, status, is_half_day, remarks, marked_by, source)
-           VALUES (?, ?, ?, ?, ?, ?, 'manual')
-           ON DUPLICATE KEY UPDATE status = VALUES(status), is_half_day = VALUES(is_half_day),
-             remarks = VALUES(remarks), marked_by = VALUES(marked_by), updated_at = CURRENT_TIMESTAMP`,
-          [leave.employee_id, d, attStatus, isHalf ? 1 : 0, `Leave request #${id} approved`, hrEmployeeId]
+          `INSERT INTO attendance (employee_id, date, status, leave_type_id, is_half_day, remarks, marked_by, source)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')
+           ON DUPLICATE KEY UPDATE status = VALUES(status), leave_type_id = VALUES(leave_type_id),
+             is_half_day = VALUES(is_half_day), remarks = VALUES(remarks),
+             marked_by = VALUES(marked_by), updated_at = CURRENT_TIMESTAMP`,
+          [leave.employee_id, d, leave.leave_type_code, leave.leave_type_id, isHalf ? 1 : 0, `Leave request #${id} approved`, hrEmployeeId]
         );
       }
       // balance_deducted stays deducted — leave is now finalized as taken.
@@ -351,13 +340,13 @@ exports.hrRespond = async (id, action, comments, hrEmployeeId) => {
         [comments, hrEmployeeId, id]
       );
       if (leave.balance_deducted) {
-        await conn.query('UPDATE employees SET leave_balance = leave_balance + ? WHERE id = ?', [leave.days, leave.employee_id]);
+        await EmployeeLeaveBalance.decrementUsed(leave.employee_id, leave.leave_type_id, leave.days, conn);
       }
       for (const d of dates) {
         await conn.query(
-          `INSERT INTO attendance (employee_id, date, status, is_half_day, remarks, marked_by, source)
-           VALUES (?, ?, 'Absent', 0, ?, ?, 'manual')
-           ON DUPLICATE KEY UPDATE status = 'Absent', remarks = VALUES(remarks),
+          `INSERT INTO attendance (employee_id, date, status, leave_type_id, is_half_day, remarks, marked_by, source)
+           VALUES (?, ?, 'Absent', NULL, 0, ?, ?, 'manual')
+           ON DUPLICATE KEY UPDATE status = 'Absent', leave_type_id = NULL, remarks = VALUES(remarks),
              marked_by = VALUES(marked_by), updated_at = CURRENT_TIMESTAMP`,
           [leave.employee_id, d, `Loss of Pay - leave request #${id} rejected by HR`, hrEmployeeId]
         );
@@ -376,7 +365,7 @@ exports.hrRespond = async (id, action, comments, hrEmployeeId) => {
 };
 
 // ============================================================
-// Stats card for the manager's "Request Management" dashboard
+// Stats
 // ============================================================
 exports.getRequestStats = async (managerEmployeeId) => {
   const today = new Date().toISOString().slice(0, 10);
@@ -390,7 +379,7 @@ exports.getRequestStats = async (managerEmployeeId) => {
      FROM leave_requests WHERE manager_id = ?`,
     [today, managerEmployeeId]
   );
-const [[permStats]] = await db.query(
+  const [[permStats]] = await db.query(
     `SELECT
        COUNT(*) AS total,
        SUM(status = 'Pending') AS pending,
@@ -408,8 +397,6 @@ const [[permStats]] = await db.query(
   };
 };
 
-
-// Org-wide stats for HR/Admin dashboard (all leave requests, not manager-scoped)
 exports.getOrgRequestStats = async () => {
   const today = new Date().toISOString().slice(0, 10);
   const [[leaveStats]] = await db.query(
@@ -440,7 +427,6 @@ exports.getAllForManager = async (managerEmployeeId, category, statusFilter) => 
 };
 
 exports.calculateLeaveDays = calculateLeaveDays;
-
 
 exports.getHRStats = async (category) => {
   const today = new Date().toISOString().slice(0, 10);

@@ -11,6 +11,7 @@ exports.getAdminStats = async (req, res) => {
     const totalDepartments = await DashboardModel.getDepartmentCount();
     const genderCounts = await DashboardModel.getEmployeeGenderCounts();
     const attendance = await DashboardModel.getTodayAttendance();
+    const departmentWiseCount = await DashboardModel.getDepartmentWiseEmployeeCount();
 
     return res.json({
       status: "success",
@@ -20,6 +21,7 @@ exports.getAdminStats = async (req, res) => {
       femaleEmployees: genderCounts.female_count || 0,
       presentToday: attendance.presentToday,
       absentToday: attendance.absentToday,
+      departmentWiseCount,
     });
   } catch (err) {
     console.error("getAdminStats error:", err);

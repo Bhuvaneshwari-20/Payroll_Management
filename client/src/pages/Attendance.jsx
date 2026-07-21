@@ -88,7 +88,7 @@ function todayISO() {
 
 
 function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
-   const { statusOptions, optionLabel } = useAttendanceStatusOptions({ withBalances: true });
+   const { statusOptions, optionLabel, refetchBalances } = useAttendanceStatusOptions({ withBalances: true });
   const [employees, setEmployees] = useState([]);
   const [statusMap, setStatusMap] = useState({});
   const [halfDayMap, setHalfDayMap] = useState({});
@@ -151,9 +151,12 @@ function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
       const res = await attendanceService.markAttendance(date, records);
       setMessage({ type: 'success', text: res.message || 'Saved' });
 
-      await load();
+      // load() refreshes employees + today's marked statuses, but it never
+      // touched the balance-hook's own state — that's what left the
+      // dropdown's "(X left)" label frozen at page-load values even after
+      // a successful save actually changed employee_leave_balance.used.
+      await Promise.all([load(), refetchBalances()]);
 
-     
       if (onSaved) onSaved(date);
     } catch (err) {
       setMessage({
@@ -175,7 +178,7 @@ function MarkAttendanceTable({ date, onDateChange, allowDateChange, onSaved }) {
       render: (e) => (
         <select
           className="form-select form-select-sm"
-          value={statusMap[e.id] || 'P'}
+          value={statusMap[e.id] || 'Present'}
           onChange={(ev) => setStatusMap({ ...statusMap, [e.id]: ev.target.value })}
         >
           {statusOptions.map((s) => (

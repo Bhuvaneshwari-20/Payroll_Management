@@ -1,4 +1,44 @@
 const db = require('../config/db');
+const EmployeeLeaveBalance = require('../models/EmployeeLeaveBalance');
+
+// ==================== EMPLOYEE LEAVE ALLOCATION (new, policy-based) ====================
+
+// GET /api/leave-allocation/employee-balances
+// Long format — one row per (employee, leave type). Frontend pivots it.
+exports.getEmployeeBalances = async (req, res) => {
+  try {
+    const rows = await EmployeeLeaveBalance.getAllBalances();
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// POST /api/leave-allocation/assign-policy  { employee_id, policy_id, effective_from }
+exports.assignPolicy = async (req, res) => {
+  try {
+    const { employee_id, policy_id, effective_from } = req.body;
+    if (!employee_id || !policy_id || !effective_from) {
+      return res.status(400).json({ success: false, message: 'Employee, policy, and effective date are required' });
+    }
+    await EmployeeLeaveBalance.assignPolicyToEmployee(employee_id, policy_id, effective_from);
+    res.json({ success: true, message: 'Leave policy assigned successfully' });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// POST /api/leave-allocation/reset-used
+// Zeroes `used` for every active employee's balances (policy-cycle rollover),
+// NOT the allocation itself — matches your "Reset All" button intent.
+exports.resetUsed = async (req, res) => {
+  try {
+    const count = await EmployeeLeaveBalance.resetAllUsed();
+    res.json({ success: true, message: `Reset usage for ${count} balance record(s)` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 // ==================== LEAVE BALANCE (existing) ====================
 
@@ -231,5 +271,35 @@ exports.deleteHoliday = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error occurred while processing your request: ' + err.message });
   } finally {
     conn.release();
+  }
+};
+
+exports.assignPolicyToAll = async (req, res) => {
+  try {
+    const { policy_id, effective_from, jtype } = req.body;
+    if (!policy_id || !effective_from) {
+      return res.status(400).json({ success: false, message: 'Policy and effective date are required' });
+    }
+    const result = await EmployeeLeaveBalance.assignPolicyToAll(policy_id, effective_from, jtype || null);
+    const failMsg = result.failures.length ? ` — ${result.failures.length} failed` : '';
+    res.json({
+      success: true,
+      message: `Assigned to ${result.successCount} of ${result.total} employee(s)${failMsg}`,
+      data: result,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+exports.runMonthlyAccrual = async (req, res) => {
+  try {
+    const affected = await EmployeeLeaveBalance.runMonthlyAccrual();
+    res.json({
+      success: true,
+      message: `Monthly accrual completed. ${affected} balance(s) updated.`,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to run monthly accrual' });
   }
 };

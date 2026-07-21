@@ -20,6 +20,18 @@ exports.getEmployeeGenderCounts = async () => {
 };
 
 
+exports.getDepartmentWiseEmployeeCount = async () => {
+  const [rows] = await db.query(
+    `SELECT d.name AS name, COUNT(e.id) AS count
+     FROM departments d
+     LEFT JOIN employees e ON e.department_id = d.id AND e.status = 'active'
+     WHERE d.status = 'active'
+     GROUP BY d.id, d.name
+     ORDER BY d.name`
+  );
+  return rows.map((r) => ({ name: r.name, count: Number(r.count) }));
+};
+
 exports.getTodayAttendance = async () => {
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 

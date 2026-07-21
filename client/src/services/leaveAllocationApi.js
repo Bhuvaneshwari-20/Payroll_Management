@@ -20,3 +20,5 @@ export const assignPolicy = (payload) => api.post('/leave-allocation/assign-poli
 export const resetUsed = () => api.post('/leave-allocation/reset-used');
 
 export const assignPolicyToAll = (payload) => api.post('/leave-allocation/assign-policy-all', payload);
+
+export const runMonthlyAccrual = () => api.post('/leave-allocation/run-monthly-accrual');

@@ -139,12 +139,12 @@ export default function PasswordReset() {
       <style>{password_reset_styles}</style>
 
       <div className="kr-page-container">
-        <nav aria-label="breadcrumb" className="kr-breadcrumb">
+        {/* <nav aria-label="breadcrumb" className="kr-breadcrumb">
           <ol className="breadcrumb">
             <li className="breadcrumb-item"><a href="#"><i className="fas fa-home"></i></a></li>
             <li className="breadcrumb-item active">Password Reset</li>
           </ol>
-        </nav>
+        </nav> */}
 
         <div className="kr-page-header mb-4">
           <h1 className="kr-page-title">Employee Password Reset</h1>

@@ -35,10 +35,19 @@ export default function FreezeReportModal({ show, onClose, fromDate, toDate, emp
             <button className="btn-close btn-close-white" onClick={onClose}></button>
           </div>
           <div className="modal-body">
-            <p>Enter a name to save this salary report permanently:</p>
+            <p style={{ color: '#212529', background: 'transparent' }}>Enter a name to save this salary report permanently:</p>
             <div className="mb-3">
-              <label className="form-label">Report Name <span className="text-danger">*</span></label>
-              <input type="text" className="form-control" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., February 2025 Payroll" />
+              <label className="form-label" style={{ color: '#212529', background: 'transparent' }}>
+                Report Name <span className="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                className="form-control"
+                style={{ color: '#212529', background: '#fff' }}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., February 2025 Payroll"
+              />
             </div>
             <div className="alert alert-info">
               <i className="fas fa-info-circle me-2"></i>

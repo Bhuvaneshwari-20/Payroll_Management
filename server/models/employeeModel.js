@@ -10,7 +10,7 @@ exports.getEmployees = async ({ department, role, status, search }) => {
     LEFT JOIN departments d ON e.department_id = d.id
     LEFT JOIN roles r ON e.role_id = r.id
     LEFT JOIN employee_salary es ON e.id = es.employee_id AND es.status = 'active'
-    WHERE 1=1`;
+    WHERE e.is_deleted = 0`;
   const params = [];
 
   if (department) { query += " AND e.department_id = ?"; params.push(department); }
@@ -41,7 +41,7 @@ exports.getEmployeeById = async (id) => {
      LEFT JOIN employee_salary es ON es.employee_id = e.id AND es.status = 'active'
      LEFT JOIN departments d ON d.id = e.department_id
      LEFT JOIN roles r ON r.id = e.role_id
-     WHERE e.id = ? LIMIT 1`,
+     WHERE e.id = ? AND e.is_deleted = 0 LIMIT 1`,
     [id]
   );
   if (!rows.length) return null;
@@ -60,6 +60,8 @@ exports.getEmployeeById = async (id) => {
 };
 
 async function generateEmployeeCode(conn) {
+  // NOTE: intentionally does NOT filter is_deleted, so a deleted employee's
+  // code (e.g. KRCB063) is never reissued to a new hire.
   const [rows] = await conn.query(
     `SELECT employee_code FROM employees
      WHERE employee_code REGEXP '^KRCB[0-9]{3}$'
@@ -78,15 +80,15 @@ exports.insertEmployee = async (b) => {
     const [result] = await conn.query(
       `INSERT INTO employees (
         employee_code, pass, first_name, last_name, email, phone, gender, dob,
-        address, district, pincode, bank_name, account_number, ifsc_code, branch_name,
+        address, district, state, pincode, pf_number, bank_name, account_number, ifsc_code, branch_name,
         aadhaar, pan, uan_number, esic_number, father_name, qualification, blood_group,
         emergency_contact, profile_image, department_id, role_id, manager_id,
         caution_deposit, employee_master_type, cert_names, cert_files,
         jtype, joining_date, status
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         employeeCode, employeeCode, b.first_name, b.last_name, b.email, b.phone,
-        b.gender, b.dob, b.address, b.district, b.pincode, b.bank_name,
+        b.gender, b.dob, b.address, b.district, b.state, b.pincode, b.pf_number || null, b.bank_name,
         b.account_number, b.ifsc_code, b.branch_name, b.aadhaar, b.pan,
         b.uan_number, b.esic_number, b.father_name, b.qualification, b.blood_group,
         b.emergency_contact, b.profile_image || null, b.department_id || null, b.role_id || null,
@@ -143,7 +145,7 @@ exports.updateEmployee = async (id, b) => {
     await conn.query(
       `UPDATE employees SET
         employee_code=?, first_name=?, last_name=?, email=?, phone=?, gender=?, dob=?,
-        address=?, district=?, pincode=?, bank_name=?, account_number=?, ifsc_code=?, branch_name=?,
+        address=?, district=?, state=?, pincode=?, pf_number=?, bank_name=?, account_number=?, ifsc_code=?, branch_name=?,
         aadhaar=?, pan=?, uan_number=?, esic_number=?, father_name=?, qualification=?, blood_group=?,
         emergency_contact=?, department_id=?, role_id=?, manager_id=?, jtype=?, joining_date=?,
         status=?, caution_deposit=?, employee_master_type=?, cert_names=?, cert_files=?,
@@ -151,7 +153,7 @@ exports.updateEmployee = async (id, b) => {
        WHERE id = ?`,
       [
         employeeCode, b.first_name, b.last_name, b.email, b.phone, b.gender, b.dob,
-        b.address, b.district, b.pincode, b.bank_name, b.account_number, b.ifsc_code, b.branch_name,
+        b.address, b.district, b.state, b.pincode, b.pf_number || null, b.bank_name, b.account_number, b.ifsc_code, b.branch_name,
         b.aadhaar, b.pan, b.uan_number, b.esic_number, b.father_name, b.qualification, b.blood_group,
         b.emergency_contact, b.department_id || null, b.role_id || null, b.manager_id || null,
         b.jtype, b.joining_date, b.status || "active", cautionDeposit, masterType,
@@ -182,19 +184,15 @@ exports.updateEmployee = async (id, b) => {
   }
 };
 
+// Soft delete: keeps the row (and every attendance/salary/status-history
+// record that references it via FK) but flags it so it drops out of every
+// list/lookup below. This is what fixes the "Cannot delete or update a
+// parent row: a foreign key constraint fails" error from a hard DELETE.
 exports.deleteEmployee = async (id) => {
-  const conn = await db.getConnection();
-  try {
-    await conn.beginTransaction();
-    await conn.query("DELETE FROM employee_salary WHERE employee_id = ?", [id]);
-    await conn.query("DELETE FROM employees WHERE id = ?", [id]);
-    await conn.commit();
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
-  }
+  await db.execute(
+    "UPDATE employees SET is_deleted = 1, deleted_at = NOW() WHERE id = ?",
+    [id]
+  );
 };
 
 exports.toggleEmployeeStatus = async (id, newStatus, reason, lastWorkingDate, inactiveDate, changedBy) => {
@@ -202,7 +200,10 @@ exports.toggleEmployeeStatus = async (id, newStatus, reason, lastWorkingDate, in
   try {
     await conn.beginTransaction();
 
-    const [rows] = await conn.query("SELECT employee_code, status FROM employees WHERE id = ?", [id]);
+    const [rows] = await conn.query(
+      "SELECT employee_code, status FROM employees WHERE id = ? AND is_deleted = 0",
+      [id]
+    );
     if (!rows.length) throw new Error("Employee not found");
     const previousStatus = rows[0].status;
     const employeeCode = rows[0].employee_code;
@@ -253,7 +254,7 @@ exports.getManagers = async (departmentId) => {
     FROM managers m
     LEFT JOIN departments d ON m.department_id = d.id
     LEFT JOIN employees e ON m.employee_id = e.id
-    WHERE m.status = 'active'`;
+    WHERE m.status = 'active' AND (e.id IS NULL OR e.is_deleted = 0)`;
   const params = [];
 
   if (departmentId) {
@@ -269,7 +270,7 @@ exports.getManagers = async (departmentId) => {
 
 exports.addManager = async (departmentId, employeeId) => {
   const [empRows] = await db.query(
-    "SELECT employee_code, CONCAT(first_name, ' ', last_name) as name FROM employees WHERE id = ?",
+    "SELECT employee_code, CONCAT(first_name, ' ', last_name) as name FROM employees WHERE id = ? AND is_deleted = 0",
     [employeeId]
   );
   if (!empRows.length) throw new Error("Employee not found");
@@ -292,6 +293,8 @@ exports.deleteManager = async (id) => {
 
 // ==================== STATUS HISTORY / STATUS CHANGES ====================
 // Both tabs read from employee_status_changes (populated by toggleEmployeeStatus above).
+// Left as-is deliberately: history for a since-deleted employee should still
+// show up here for audit purposes, so no is_deleted filter is added.
 
 exports.getEmployeeStatusHistory = async () => {
   const [rows] = await db.query(
@@ -341,7 +344,10 @@ exports.getStatusHistoryForExport = async () => {
 // ==================== BULK DEDUCTION UPLOAD ====================
 
 exports.getEmployeeIdByCode = async (code) => {
-  const [rows] = await db.query("SELECT id FROM employees WHERE employee_code = ?", [code]);
+  const [rows] = await db.query(
+    "SELECT id FROM employees WHERE employee_code = ? AND is_deleted = 0",
+    [code]
+  );
   return rows.length ? rows[0].id : null;
 };
 
@@ -409,7 +415,10 @@ exports.getManagerIdByEmployeeCode = async (code) => {
 };
 
 exports.isEmailTaken = async (email) => {
-  const [rows] = await db.query("SELECT id FROM employees WHERE email = ? LIMIT 1", [email]);
+  const [rows] = await db.query(
+    "SELECT id FROM employees WHERE email = ? AND is_deleted = 0 LIMIT 1",
+    [email]
+  );
   return rows.length > 0;
 };
 
@@ -430,10 +439,11 @@ exports.getEmployeesForExport = async (filter) => {
     LEFT JOIN departments d ON e.department_id = d.id
     LEFT JOIN roles r ON e.role_id = r.id
     LEFT JOIN managers m ON e.manager_id = m.id
-    LEFT JOIN employee_salary es ON e.id = es.employee_id AND es.status = 'active'`;
+    LEFT JOIN employee_salary es ON e.id = es.employee_id AND es.status = 'active'
+    WHERE e.is_deleted = 0`;
 
-  if (filter === "active") query += " WHERE e.status = 'active'";
-  else if (filter === "inactive") query += " WHERE e.status = 'inactive'";
+  if (filter === "active") query += " AND e.status = 'active'";
+  else if (filter === "inactive") query += " AND e.status = 'inactive'";
   query += " ORDER BY e.id";
 
   const [rows] = await db.query(query);

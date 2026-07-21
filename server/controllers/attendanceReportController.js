@@ -23,22 +23,33 @@ function isLate(inTime) {
   return inTime > model.SHIFT_START_TIME;
 }
 
+// Any status that isn't one of the fixed non-leave codes is a leave-type
+// code straight from leave_types (PAL, MAL, CL, SL, OD, ...). No more
+// hardcoded whitelist here — that whitelist is exactly what silently
+// dropped PAL/MAL into "absent" before.
 function bucketFor(status) {
   if (status === "P") return "present";
   if (status === "AB") return "absent";
   if (status === "S") return "half_day";
   if (status === "H") return "holiday";
   if (status === "WO") return "week_off";
-  if (["CL", "SL", "EL", "OD", "ML", "PL", "L"].includes(status)) return "leave";
-  return "absent";
+  return "leave";
 }
 
 // Aggregates raw per-day rows into one summary row per employee.
+//
+// Paid vs LOP is NOT decided here. `r.is_lop` was already decided once, at
+// attendance-marking time (attendanceController.js: resolveLopFlag), by
+// checking the employee's remaining leave balance in date order. This
+// function just sums up that stamp — so a report for June and a report for
+// June+July always agree on the same underlying leave days.
+//
 // NOTE: this intentionally ignores any `status` filter — the summary table
 // is meant to show all buckets side-by-side. Status filtering only applies
 // to the per-employee detail drill-down (getEmployeeDetail below).
 function buildSummary(rows, fromDate, toDate) {
   const byEmployee = {};
+  const leaveCodesSeen = new Set();
 
   rows.forEach((r) => {
     const key = r.employee_code;
@@ -51,29 +62,76 @@ function buildSummary(rows, fromDate, toDate) {
         present: 0,
         absent: 0,
         half_day: 0,
-        leave: 0,
+        leaveByType: {}, // { CL: 1, SL: 2, ... } — PAID days only, per leave-type code
+        lop_leave: 0,    // leave days taken beyond that type's allocation
         holiday: 0,
         week_off: 0,
       };
     }
-    byEmployee[key][bucketFor(r.status)] += 1;
+    const e = byEmployee[key];
+    const bucket = bucketFor(r.status);
+
+    if (bucket === "leave") {
+      leaveCodesSeen.add(r.status);
+      // r.is_lop: 0 = paid (covered by allocation), 1 = LOP (beyond allocation).
+      // NULL only happens for rows created before the is_lop migration/backfill —
+      // treated as paid so historical reports don't retroactively break; run
+      // the backfill script to replace NULLs with real values.
+      if (r.is_lop === 1) {
+        e.lop_leave += 1;
+      } else {
+        // FIX: previously every leave-type code was lumped into one 'leave'
+        // total, so "2 CL taken, 1 allocated" showed as "2 Leave" with no
+        // way to see it was specifically CL, or that 1 of those 2 was over
+        // allocation. Now tallied per actual leave-type code.
+        e.leaveByType[r.status] = (e.leaveByType[r.status] || 0) + 1;
+      }
+    } else {
+      e[bucket] += 1;
+    }
   });
 
   const totalDays = daysBetweenInclusive(fromDate, toDate).length;
+  // Leave-type codes actually present in this date range, so the frontend
+  // can render one column per code dynamically (CL, SL, OD, PAL, MAL, ...)
+  // — same pattern as the Attendance Matrix page, instead of one lumped
+  // 'leave' number that hides which type it was.
+  const leaveCodes = Array.from(leaveCodesSeen).sort();
 
-  return Object.values(byEmployee).map((e) => {
+  const data = Object.values(byEmployee).map((e) => {
     const workingDays = totalDays - e.holiday - e.week_off;
-    // LOP = unapproved absence. Everything bucketed "absent" here has no
-    // matching Present/Leave/Holiday/WeekOff record, so it's treated as
-    // Loss of Pay. Adjust if you track partial/paid absences separately.
-    const lop = e.absent;
+    const paidLeaveTotal = Object.values(e.leaveByType).reduce((s, v) => s + v, 0);
+    // LOP = unapproved absence + leave taken beyond the employee's allocated
+    // balance for that leave type. Only the excess counts as LOP, because
+    // e.lop_leave already reflects the per-day balance check done at mark time
+    // (resolveLopFlag in attendanceController.js) — not a re-derived guess.
+    const lop = e.absent + e.lop_leave;
     const effectivePresent = e.present + e.half_day * 0.5;
     const attendancePercent = workingDays > 0
       ? Number(((effectivePresent / workingDays) * 100).toFixed(2))
       : 0;
 
-    return { ...e, lop, working_days: workingDays, attendance_percent: attendancePercent };
+    const row = {
+      employee_code: e.employee_code,
+      first_name: e.first_name,
+      last_name: e.last_name,
+      department: e.department,
+      present: e.present,
+      absent: e.absent,
+      half_day: e.half_day,
+      holiday: e.holiday,
+      week_off: e.week_off,
+      leave: paidLeaveTotal, // total PAID leave across all types (unchanged meaning, for callers that just sum it)
+      lop,
+      working_days: workingDays,
+      attendance_percent: attendancePercent,
+    };
+    // one field per leave-type code, e.g. row.CL, row.SL, row.PAL — paid days only
+    leaveCodes.forEach((code) => { row[code] = e.leaveByType[code] || 0; });
+    return row;
   });
+
+  return { data, leaveCodes };
 }
 
 // Determines which employee_codes the caller may see, and whether the
@@ -114,7 +172,7 @@ exports.generateReport = async (req, res) => {
       ? rows.filter((r) => scope.restrictedCodes.includes(r.employee_code))
       : rows;
 
-    const data = buildSummary(scoped, from_date, to_date);
+    const { data, leaveCodes } = buildSummary(scoped, from_date, to_date);
 
     // Holiday/week-off counts are the same company-wide calendar for every
     // employee in range, so take them from the first row rather than summing.
@@ -125,14 +183,18 @@ exports.generateReport = async (req, res) => {
       absent: data.reduce((s, e) => s + e.absent, 0),
       half_day: data.reduce((s, e) => s + e.half_day, 0),
       leave: data.reduce((s, e) => s + e.leave, 0),
+      lop: data.reduce((s, e) => s + e.lop, 0),
       holiday: sample ? sample.holiday : 0,
       week_off: sample ? sample.week_off : 0,
       attendance_percent: data.length
         ? Number((data.reduce((s, e) => s + e.attendance_percent, 0) / data.length).toFixed(2))
         : 0,
     };
-
-    res.json({ success: true, data, summary });
+    // leaveCodes: e.g. ['CL','MAL','OD','PAL','SL'] — active leave-type codes
+    // seen in this date range. Frontend renders one summary column per code,
+    // reading row[code] on each employee row in `data` (same pattern as the
+    // Attendance Matrix page's leaveTypeCodes.map(...) columns).
+    res.json({ success: true, data, leaveCodes, summary });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: err.message });
@@ -170,6 +232,10 @@ exports.getEmployeeDetail = async (req, res) => {
       check_out: r.out_time || "-",
       working_hours: r.working_hours || "-",
       late: isLate(r.in_time) ? "Yes" : "No",
+      // "-" for non-leave days (Present/Absent/Holiday/WeekOff), otherwise
+      // shows whether that specific leave day was paid or LOP — useful for
+      // employees/HR to see exactly which days pushed them over allocation.
+      pay_status: r.is_lop === null || r.is_lop === undefined ? "-" : (r.is_lop === 1 ? "LOP" : "Paid"),
       remarks: r.remarks || "-",
     }));
 
@@ -213,22 +279,26 @@ exports.exportExcel = async (req, res) => {
     const scoped = scope.restrictedCodes
       ? rows.filter((r) => scope.restrictedCodes.includes(r.employee_code))
       : rows;
-    const data = buildSummary(scoped, from_date, to_date);
+    const { data, leaveCodes } = buildSummary(scoped, from_date, to_date);
 
-    const sheetData = data.map((e) => ({
-      "Employee Code": e.employee_code,
-      Name: `${e.first_name} ${e.last_name}`,
-      Department: e.department,
-      Present: e.present,
-      Absent: e.absent,
-      "Half Day": e.half_day,
-      Leave: e.leave,
-      Holiday: e.holiday,
-      "Week Off": e.week_off,
-      LOP: e.lop,
-      "Working Days": e.working_days,
-      "Attendance %": e.attendance_percent,
-    }));
+    const sheetData = data.map((e) => {
+      const row = {
+        "Employee Code": e.employee_code,
+        Name: `${e.first_name} ${e.last_name}`,
+        Department: e.department,
+        Present: e.present,
+        Absent: e.absent,
+        "Half Day": e.half_day,
+      };
+      // one Excel column per leave-type code (CL, SL, PAL, MAL, OD, ...)
+      leaveCodes.forEach((code) => { row[code] = e[code] ?? 0; });
+      row.Holiday = e.holiday;
+      row["Week Off"] = e.week_off;
+      row.LOP = e.lop;
+      row["Working Days"] = e.working_days;
+      row["Attendance %"] = e.attendance_percent;
+      return row;
+    });
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sheetData);

@@ -189,13 +189,17 @@ exports.uploadBulkDeductions = async (req, res) => {
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
-    const totalRecords = rows.length - 1;
+    let totalRecords = 0; // count only rows that actually have data
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row || row.length === 0) continue;
 
       const employeeCode = row[0];
+      if (employeeCode === undefined || employeeCode === null || String(employeeCode).trim() === '') continue;
+
+      totalRecords++; // only counted for real rows past this point
+
       const deductions = {
         pf_applicable: String(row[1] || '').toLowerCase() === 'yes' ? 1 : 0,
         esi_applicable: String(row[2] || '').toLowerCase() === 'yes' ? 1 : 0,
@@ -240,7 +244,6 @@ exports.uploadBulkDeductions = async (req, res) => {
     fail(res, 'Failed to process upload: ' + err.message, 500);
   }
 };
-
 exports.getUploadHistory = async (req, res) => {
   try {
     const data = await employeeModel.getUploadHistory();
@@ -280,11 +283,13 @@ const EMP_TEMPLATE_COLUMNS = [
   { header: 'Gender (male/female/other)', key: 'gender', required: true },
   { header: 'Father Name', key: 'father_name', required: true },
   { header: 'Qualification', key: 'qualification', required: true },
+  { header: 'State', key: 'state', required: true },
   { header: 'District', key: 'district', required: true },
   { header: 'Pincode', key: 'pincode', required: true },
   { header: 'Blood Group', key: 'blood_group', required: false },
   { header: 'Address', key: 'address', required: false },
   { header: 'Aadhaar', key: 'aadhaar', required: true },
+  { header: 'PF Number', key: 'pf_number', required: false },
   { header: 'Bank Name', key: 'bank_name', required: true },
   { header: 'Branch Name', key: 'branch_name', required: true },
   { header: 'Account Number', key: 'account_number', required: true },
@@ -330,8 +335,8 @@ exports.downloadEmployeeTemplate = async (req, res) => {
     // One example row so the format is unambiguous
     sheet.addRow([
       'Ramesh', 'Kumar', '1995-06-15', '9876543210', '9876543211', 'ramesh@example.com',
-      'male', 'Suresh Kumar', 'B.Com', 'Karur', '639001', 'O+', '12 Main Street',
-      '123456789012', 'State Bank of India', 'Karur Main', '1234567890123', 'SBIN0001234',
+      'male', 'Suresh Kumar', 'B.Com', 'Tamil Nadu', 'Karur', '639001', 'O+', '12 Main Street',
+      '123456789012', 'TN/12345/2024', 'State Bank of India', 'Karur Main', '1234567890123', 'SBIN0001234',
       'ABCDE1234F', '', '', '2026-01-15', 'SALES', 'ASSISTANT SALES MANAGER', '',
       'Permanent', 'active', '25000', 'Yes', 'Yes', '0', '0', '0', '0', '0', '0', '0',
     ]);
@@ -380,8 +385,7 @@ exports.uploadBulkEmployees = async (req, res) => {
 
       const rowData = {};
       EMP_TEMPLATE_COLUMNS.forEach((col, idx) => {
-        const val = row.getCell(idx + 1).value;
-        rowData[col.key] = val !== null && val !== undefined ? String(val).trim() : '';
+        rowData[col.key] = getCellText(row.getCell(idx + 1));
       });
 
       // Required-field validation
@@ -434,11 +438,13 @@ exports.uploadBulkEmployees = async (req, res) => {
           gender: rowData.gender.toLowerCase(),
           father_name: rowData.father_name,
           qualification: rowData.qualification,
+          state: rowData.state,
           district: rowData.district,
           pincode: rowData.pincode,
           blood_group: rowData.blood_group || null,
           address: rowData.address || null,
           aadhaar: rowData.aadhaar,
+          pf_number: rowData.pf_number || null,
           bank_name: rowData.bank_name,
           branch_name: rowData.branch_name,
           account_number: rowData.account_number,
@@ -631,3 +637,18 @@ exports.exportStatusHistoryExcel = async (req, res) => {
     fail(res, 'Failed to generate Excel: ' + err.message, 500);
   }
 };
+
+
+function getCellText(cell) {
+  let val = cell.value;
+  if (val === null || val === undefined) return '';
+
+  if (typeof val === 'object') {
+    if (val.text !== undefined) val = val.text;              // hyperlink
+    else if (Array.isArray(val.richText)) val = val.richText.map(r => r.text).join(''); // rich text
+    else if (val.result !== undefined) val = val.result;      // formula
+    else if (val instanceof Date) val = val.toISOString().slice(0, 10); // date
+    else val = '';
+  }
+  return String(val).trim();
+}

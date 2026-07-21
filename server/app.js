@@ -26,6 +26,17 @@ app.use('/api/salary', require('./routes/salaryRoutes'));
 app.use('/api/payslips', require('./routes/payslip.routes'));
 app.use('/api/passwords',require('./routes/password.routes'));
 app.use('/api/attendance', require('./routes/attendanceReportRoutes'));
+app.use('/api/leave-types', require('./routes/leaveTypeRoutes'));
+app.use('/api/leave-policies', require('./routes/leavePolicyRoutes'));
+app.use('/api/salary', require('./routes/salaryRoutes'));
+app.use('/api/payslips', require('./routes/payslip.routes'));
+app.use('/api/passwords',require('./routes/password.routes'));
+app.use('/api/attendance', require('./routes/attendanceReportRoutes'));
+
+const { scheduleMonthlyAccrual } = require('./jobs/monthlyLeaveAccrual');
+scheduleMonthlyAccrual();
+
+
 
 app.listen(5000, () => {
     console.log("Server Running on 5000");
